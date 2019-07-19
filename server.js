@@ -44,9 +44,12 @@ var http = require('http');
 const port = 9000;
 var server = app.listen(port);
 
-mongoose.connect('mongodb://localhost:27017/spurtcommerce', { useNewUrlParser: true })
-    .then(() => console.log("CONNECTED"))
-    .catch(err => console.log(err));
+// mongoose.connect('mongodb://localhost:27017/spurtcommerce', { useNewUrlParser: true })
+//     .then(() => console.log("CONNECTED"))
+//     .catch(err => console.log(err));
+mongoose.connect('mongodb://54.185.16.135:27017/spurtCommerce', { useNewUrlParser: true })
+ .then(() => console.log("Connected"))
+ .catch(err => console.log(err));
 
 app.use(cors());
 app.use(bodyParser.urlencoded({ extended: false }));
