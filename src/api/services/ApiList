@@ -1,0 +1,7 @@
+Spurt Commerce API List
+
+StoreList
+
+/api/list/add-related-product
+/api/list/banner-list
+/api/list/category-list
