@@ -1,3 +1,4 @@
+import { MysqlDriver } from "../driver/mysql/MysqlDriver";
 import { ColumnMetadata } from "../metadata/ColumnMetadata";
 import { UniqueMetadata } from "../metadata/UniqueMetadata";
 import { ForeignKeyMetadata } from "../metadata/ForeignKeyMetadata";
@@ -58,10 +59,12 @@ var RelationJoinColumnBuilder = /** @class */ (function () {
             referencedColumns: referencedColumns,
             onDelete: relation.onDelete,
             onUpdate: relation.onUpdate,
+            deferrable: relation.deferrable,
         });
         // Oracle does not allow both primary and unique constraints on the same column
         if (this.connection.driver instanceof OracleDriver && columns.every(function (column) { return column.isPrimary; }))
             return { foreignKey: foreignKey, uniqueConstraint: undefined };
+        // CockroachDB requires UNIQUE constraints on referenced columns
         if (referencedColumns.length > 0 && relation.isOneToOne) {
             var uniqueConstraint = new UniqueMetadata({
                 entityMetadata: relation.entityMetadata,
@@ -122,7 +125,11 @@ var RelationJoinColumnBuilder = /** @class */ (function () {
                         options: {
                             name: joinColumnName,
                             type: referencedColumn.type,
-                            length: referencedColumn.length,
+                            length: !referencedColumn.length
+                                && (_this.connection.driver instanceof MysqlDriver)
+                                && (referencedColumn.generationStrategy === "uuid" || referencedColumn.type === "uuid")
+                                ? "36"
+                                : referencedColumn.length,
                             width: referencedColumn.width,
                             charset: referencedColumn.charset,
                             collation: referencedColumn.collation,

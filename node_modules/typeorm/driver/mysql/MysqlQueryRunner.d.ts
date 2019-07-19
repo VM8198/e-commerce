@@ -4,6 +4,8 @@ import { TableColumn } from "../../schema-builder/table/TableColumn";
 import { Table } from "../../schema-builder/table/Table";
 import { TableForeignKey } from "../../schema-builder/table/TableForeignKey";
 import { TableIndex } from "../../schema-builder/table/TableIndex";
+import { View } from "../../schema-builder/view/View";
+import { Query } from "../Query";
 import { MysqlDriver } from "./MysqlDriver";
 import { ReadStream } from "../../platform/PlatformTools";
 import { TableUnique } from "../../schema-builder/table/TableUnique";
@@ -105,6 +107,14 @@ export declare class MysqlQueryRunner extends BaseQueryRunner implements QueryRu
      * Drop the table.
      */
     dropTable(target: Table | string, ifExist?: boolean, dropForeignKeys?: boolean): Promise<void>;
+    /**
+     * Creates a new view.
+     */
+    createView(view: View): Promise<void>;
+    /**
+     * Drops the view.
+     */
+    dropView(target: View | string): Promise<void>;
     /**
      * Renames a table.
      */
@@ -247,6 +257,7 @@ export declare class MysqlQueryRunner extends BaseQueryRunner implements QueryRu
      * Returns current database.
      */
     protected getCurrentDatabase(): Promise<string>;
+    protected loadViews(viewNames: string[]): Promise<View[]>;
     /**
      * Loads all tables (with given names) from the database and creates a Table from them.
      */
@@ -254,43 +265,53 @@ export declare class MysqlQueryRunner extends BaseQueryRunner implements QueryRu
     /**
      * Builds create table sql
      */
-    protected createTableSql(table: Table, createForeignKeys?: boolean): string;
+    protected createTableSql(table: Table, createForeignKeys?: boolean): Query;
     /**
      * Builds drop table sql
      */
-    protected dropTableSql(tableOrName: Table | string): string;
+    protected dropTableSql(tableOrName: Table | string): Query;
+    protected createViewSql(view: View): Query;
+    protected insertViewDefinitionSql(view: View): Promise<Query>;
+    /**
+     * Builds drop view sql.
+     */
+    protected dropViewSql(viewOrPath: View | string): Query;
+    /**
+     * Builds remove view sql.
+     */
+    protected deleteViewDefinitionSql(viewOrPath: View | string): Promise<Query>;
     /**
      * Builds create index sql.
      */
-    protected createIndexSql(table: Table, index: TableIndex): string;
+    protected createIndexSql(table: Table, index: TableIndex): Query;
     /**
      * Builds drop index sql.
      */
-    protected dropIndexSql(table: Table, indexOrName: TableIndex | string): string;
+    protected dropIndexSql(table: Table, indexOrName: TableIndex | string): Query;
     /**
      * Builds create primary key sql.
      */
-    protected createPrimaryKeySql(table: Table, columnNames: string[]): string;
+    protected createPrimaryKeySql(table: Table, columnNames: string[]): Query;
     /**
      * Builds drop primary key sql.
      */
-    protected dropPrimaryKeySql(table: Table): string;
+    protected dropPrimaryKeySql(table: Table): Query;
     /**
      * Builds create foreign key sql.
      */
-    protected createForeignKeySql(table: Table, foreignKey: TableForeignKey): string;
+    protected createForeignKeySql(table: Table, foreignKey: TableForeignKey): Query;
     /**
      * Builds drop foreign key sql.
      */
-    protected dropForeignKeySql(table: Table, foreignKeyOrName: TableForeignKey | string): string;
+    protected dropForeignKeySql(table: Table, foreignKeyOrName: TableForeignKey | string): Query;
     protected parseTableName(target: Table | string): {
         database: string | undefined;
         tableName: string;
     };
     /**
-     * Escapes given table name.
+     * Escapes given table or view path.
      */
-    protected escapeTableName(target: Table | string, disableEscape?: boolean): string;
+    protected escapePath(target: Table | View | string, disableEscape?: boolean): string;
     /**
      * Builds a part of query to create/change a column.
      */

@@ -37,7 +37,10 @@ var SchemaLogCommand = /** @class */ (function () {
                         _a.label = 1;
                     case 1:
                         _a.trys.push([1, 6, , 7]);
-                        connectionOptionsReader = new ConnectionOptionsReader_1.ConnectionOptionsReader({ root: process.cwd(), configName: args.config });
+                        connectionOptionsReader = new ConnectionOptionsReader_1.ConnectionOptionsReader({
+                            root: process.cwd(),
+                            configName: args.config
+                        });
                         return [4 /*yield*/, connectionOptionsReader.get(args.connection)];
                     case 2:
                         connectionOptions = _a.sent();
@@ -61,8 +64,8 @@ var SchemaLogCommand = /** @class */ (function () {
                             console.log(chalk.yellow("---------------------------------------------------------------" + lengthSeparators));
                             console.log(chalk.yellow.bold("-- Schema syncronization will execute following sql queries (" + chalk.white(sqlInMemory.upQueries.length) + "):"));
                             console.log(chalk.yellow("---------------------------------------------------------------" + lengthSeparators));
-                            sqlInMemory.upQueries.forEach(function (query) {
-                                var sqlString = query;
+                            sqlInMemory.upQueries.forEach(function (upQuery) {
+                                var sqlString = upQuery.query;
                                 sqlString = sqlString.trim();
                                 sqlString = sqlString.substr(-1) === ";" ? sqlString : sqlString + ";";
                                 console.log(cli_highlight_1.highlight(sqlString));

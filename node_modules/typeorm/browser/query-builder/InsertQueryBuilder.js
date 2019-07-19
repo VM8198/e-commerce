@@ -1,4 +1,5 @@
 import * as tslib_1 from "tslib";
+import { CockroachDriver } from "../driver/cockroachdb/CockroachDriver";
 import { QueryBuilder } from "./QueryBuilder";
 import { SqlServerDriver } from "../driver/sqlserver/SqlServerDriver";
 import { PostgresDriver } from "../driver/postgres/PostgresDriver";
@@ -211,7 +212,7 @@ var InsertQueryBuilder = /** @class */ (function (_super) {
             if (this.connection.driver instanceof MysqlDriver) {
                 this.expressionMap.onUpdate.overwrite = statement.overwrite.map(function (column) { return column + " = VALUES(" + column + ")"; }).join(", ");
             }
-            else if (this.connection.driver instanceof PostgresDriver) {
+            else if (this.connection.driver instanceof PostgresDriver || this.connection.driver instanceof AbstractSqliteDriver) {
                 this.expressionMap.onUpdate.overwrite = statement.overwrite.map(function (column) { return column + " = EXCLUDED." + column; }).join(", ");
             }
         }
@@ -274,7 +275,7 @@ var InsertQueryBuilder = /** @class */ (function (_super) {
             }
         }
         // add RETURNING expression
-        if (returningExpression && (this.connection.driver instanceof PostgresDriver || this.connection.driver instanceof OracleDriver)) {
+        if (returningExpression && (this.connection.driver instanceof PostgresDriver || this.connection.driver instanceof OracleDriver || this.connection.driver instanceof CockroachDriver)) {
             query += " RETURNING " + returningExpression;
         }
         return query;
@@ -290,9 +291,16 @@ var InsertQueryBuilder = /** @class */ (function (_super) {
             // if user specified list of columns he wants to insert to, then we filter only them
             if (_this.expressionMap.insertColumns.length)
                 return _this.expressionMap.insertColumns.indexOf(column.propertyPath) !== -1;
+            // skip columns the user doesn't want included by default
+            if (!column.isInsert) {
+                return false;
+            }
             // if user did not specified such list then return all columns except auto-increment one
             // for Oracle we return auto-increment column as well because Oracle does not support DEFAULT VALUES expression
-            if (column.isGenerated && column.generationStrategy === "increment" && !(_this.connection.driver instanceof OracleDriver) && !(_this.connection.driver instanceof MysqlDriver))
+            if (column.isGenerated && column.generationStrategy === "increment"
+                && !(_this.connection.driver instanceof OracleDriver)
+                && !(_this.connection.driver instanceof AbstractSqliteDriver)
+                && !(_this.connection.driver instanceof MysqlDriver))
                 return false;
             return true;
         });
@@ -358,8 +366,8 @@ var InsertQueryBuilder = /** @class */ (function (_super) {
                         //     expression += subQuery;
                     }
                     else if (column.isDiscriminator) {
-                        _this.expressionMap.nativeParameters["discriminator_value"] = _this.expressionMap.mainAlias.metadata.discriminatorValue;
-                        expression_1 += _this.connection.driver.createParameter("discriminator_value", parametersCount_1);
+                        _this.expressionMap.nativeParameters["discriminator_value_" + parametersCount_1] = _this.expressionMap.mainAlias.metadata.discriminatorValue;
+                        expression_1 += _this.connection.driver.createParameter("discriminator_value_" + parametersCount_1, parametersCount_1);
                         parametersCount_1++;
                         // return "1";
                         // for create and update dates we insert current date
@@ -437,31 +445,51 @@ var InsertQueryBuilder = /** @class */ (function (_super) {
         }
         else { // for tables without metadata
             // get values needs to be inserted
-            return valueSets.map(function (valueSet, insertionIndex) {
-                var columnValues = Object.keys(valueSet).map(function (columnName) {
+            var expression_2 = "";
+            var parametersCount_2 = Object.keys(this.expressionMap.nativeParameters).length;
+            valueSets.forEach(function (valueSet, insertionIndex) {
+                var columns = Object.keys(valueSet);
+                columns.forEach(function (columnName, columnIndex) {
+                    if (columnIndex === 0) {
+                        expression_2 += "(";
+                    }
                     var paramName = "i" + insertionIndex + "_" + columnName;
                     var value = valueSet[columnName];
                     // support for SQL expressions in queries
                     if (value instanceof Function) {
-                        return value();
+                        expression_2 += value();
                         // if value for this column was not provided then insert default value
                     }
                     else if (value === undefined) {
                         if (_this.connection.driver instanceof AbstractSqliteDriver) {
-                            return "NULL";
+                            expression_2 += "NULL";
                         }
                         else {
-                            return "DEFAULT";
+                            expression_2 += "DEFAULT";
                         }
                         // just any other regular value
                     }
                     else {
                         _this.expressionMap.nativeParameters[paramName] = value;
-                        return _this.connection.driver.createParameter(paramName, Object.keys(_this.expressionMap.nativeParameters).length - 1);
+                        expression_2 += _this.connection.driver.createParameter(paramName, parametersCount_2);
+                        parametersCount_2++;
                     }
-                }).join(", ").trim();
-                return columnValues ? "(" + columnValues + ")" : "";
-            }).join(", ");
+                    if (columnIndex === Object.keys(valueSet).length - 1) {
+                        if (insertionIndex === valueSets.length - 1) {
+                            expression_2 += ")";
+                        }
+                        else {
+                            expression_2 += "), ";
+                        }
+                    }
+                    else {
+                        expression_2 += ", ";
+                    }
+                });
+            });
+            if (expression_2 === "()")
+                return "";
+            return expression_2;
         }
     };
     /**

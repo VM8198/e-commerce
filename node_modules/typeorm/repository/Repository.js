@@ -89,8 +89,8 @@ var Repository = /** @class */ (function () {
      * Executes fast and efficient INSERT query.
      * Does not check if entity exist in the database, so query will fail if duplicate entity is being inserted.
      */
-    Repository.prototype.insert = function (entity, options) {
-        return this.manager.insert(this.metadata.target, entity, options);
+    Repository.prototype.insert = function (entity) {
+        return this.manager.insert(this.metadata.target, entity);
     };
     /**
      * Updates entity partially. Entity can be found by a given conditions.
@@ -98,8 +98,8 @@ var Repository = /** @class */ (function () {
      * Executes fast and efficient UPDATE query.
      * Does not check if entity exist in the database.
      */
-    Repository.prototype.update = function (criteria, partialEntity, options) {
-        return this.manager.update(this.metadata.target, criteria, partialEntity, options);
+    Repository.prototype.update = function (criteria, partialEntity) {
+        return this.manager.update(this.metadata.target, criteria, partialEntity);
     };
     /**
      * Deletes entities by a given criteria.
@@ -107,8 +107,8 @@ var Repository = /** @class */ (function () {
      * Executes fast and efficient DELETE query.
      * Does not check if entity exist in the database.
      */
-    Repository.prototype.delete = function (criteria, options) {
-        return this.manager.delete(this.metadata.target, criteria, options);
+    Repository.prototype.delete = function (criteria) {
+        return this.manager.delete(this.metadata.target, criteria);
     };
     /**
      * Counts entities that match given find options or conditions.

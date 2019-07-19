@@ -3,6 +3,8 @@ import { TableColumn } from "../../schema-builder/table/TableColumn";
 import { Table } from "../../schema-builder/table/Table";
 import { TableIndex } from "../../schema-builder/table/TableIndex";
 import { TableForeignKey } from "../../schema-builder/table/TableForeignKey";
+import { View } from "../../schema-builder/view/View";
+import { Query } from "../Query";
 import { AbstractSqliteDriver } from "./AbstractSqliteDriver";
 import { ReadStream } from "../../platform/PlatformTools";
 import { TableUnique } from "../../schema-builder/table/TableUnique";
@@ -96,6 +98,14 @@ export declare abstract class AbstractSqliteQueryRunner extends BaseQueryRunner 
      * Drops the table.
      */
     dropTable(tableOrName: Table | string, ifExist?: boolean, dropForeignKeys?: boolean, dropIndices?: boolean): Promise<void>;
+    /**
+     * Creates a new view.
+     */
+    createView(view: View): Promise<void>;
+    /**
+     * Drops the view.
+     */
+    dropView(target: View | string): Promise<void>;
     /**
      * Renames the given table.
      */
@@ -233,6 +243,7 @@ export declare abstract class AbstractSqliteQueryRunner extends BaseQueryRunner 
      * Removes all tables from the currently connected database.
      */
     clearDatabase(): Promise<void>;
+    protected loadViews(viewNames: string[]): Promise<View[]>;
     /**
      * Loads all tables (with given names) from the database and creates a Table from them.
      */
@@ -240,19 +251,29 @@ export declare abstract class AbstractSqliteQueryRunner extends BaseQueryRunner 
     /**
      * Builds create table sql.
      */
-    protected createTableSql(table: Table, createForeignKeys?: boolean): string;
+    protected createTableSql(table: Table, createForeignKeys?: boolean): Query;
     /**
      * Builds drop table sql.
      */
-    protected dropTableSql(tableOrName: Table | string, ifExist?: boolean): string;
+    protected dropTableSql(tableOrName: Table | string, ifExist?: boolean): Query;
+    protected createViewSql(view: View): Query;
+    protected insertViewDefinitionSql(view: View): Query;
+    /**
+     * Builds drop view sql.
+     */
+    protected dropViewSql(viewOrPath: View | string): Query;
+    /**
+     * Builds remove view sql.
+     */
+    protected deleteViewDefinitionSql(viewOrPath: View | string): Query;
     /**
      * Builds create index sql.
      */
-    protected createIndexSql(table: Table, index: TableIndex): string;
+    protected createIndexSql(table: Table, index: TableIndex): Query;
     /**
      * Builds drop index sql.
      */
-    protected dropIndexSql(indexOrName: TableIndex | string): string;
+    protected dropIndexSql(indexOrName: TableIndex | string): Query;
     /**
      * Builds a query for create column.
      */

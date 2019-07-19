@@ -54,7 +54,10 @@ var MigrationGenerateCommand = /** @class */ (function () {
                         _a.label = 1;
                     case 1:
                         _a.trys.push([1, 3, , 4]);
-                        connectionOptionsReader = new ConnectionOptionsReader_1.ConnectionOptionsReader({ root: process.cwd(), configName: args.config });
+                        connectionOptionsReader = new ConnectionOptionsReader_1.ConnectionOptionsReader({
+                            root: process.cwd(),
+                            configName: args.config
+                        });
                         return [4 /*yield*/, connectionOptionsReader.get(args.connection)];
                     case 2:
                         connectionOptions = _a.sent();
@@ -68,7 +71,10 @@ var MigrationGenerateCommand = /** @class */ (function () {
                         _a.label = 5;
                     case 5:
                         _a.trys.push([5, 15, , 18]);
-                        connectionOptionsReader = new ConnectionOptionsReader_1.ConnectionOptionsReader({ root: process.cwd(), configName: args.config });
+                        connectionOptionsReader = new ConnectionOptionsReader_1.ConnectionOptionsReader({
+                            root: process.cwd(),
+                            configName: args.config
+                        });
                         return [4 /*yield*/, connectionOptionsReader.get(args.connection)];
                     case 6:
                         connectionOptions = _a.sent();
@@ -88,19 +94,19 @@ var MigrationGenerateCommand = /** @class */ (function () {
                         // mysql is exceptional here because it uses ` character in to escape names in queries, that's why for mysql
                         // we are using simple quoted string instead of template string syntax
                         if (connection.driver instanceof MysqlDriver_1.MysqlDriver) {
-                            sqlInMemory.upQueries.forEach(function (query) {
-                                upSqls_1.push("        await queryRunner.query(\"" + query.replace(new RegExp("\"", "g"), "\\\"") + "\");");
+                            sqlInMemory.upQueries.forEach(function (upQuery) {
+                                upSqls_1.push("        await queryRunner.query(\"" + upQuery.query.replace(new RegExp("\"", "g"), "\\\"") + "\");");
                             });
-                            sqlInMemory.downQueries.forEach(function (query) {
-                                downSqls_1.push("        await queryRunner.query(\"" + query.replace(new RegExp("\"", "g"), "\\\"") + "\");");
+                            sqlInMemory.downQueries.forEach(function (downQuery) {
+                                downSqls_1.push("        await queryRunner.query(\"" + downQuery.query.replace(new RegExp("\"", "g"), "\\\"") + "\");");
                             });
                         }
                         else {
-                            sqlInMemory.upQueries.forEach(function (query) {
-                                upSqls_1.push("        await queryRunner.query(`" + query.replace(new RegExp("`", "g"), "\\`") + "`);");
+                            sqlInMemory.upQueries.forEach(function (upQuery) {
+                                upSqls_1.push("        await queryRunner.query(`" + upQuery.query.replace(new RegExp("`", "g"), "\\`") + "`);");
                             });
-                            sqlInMemory.downQueries.forEach(function (query) {
-                                downSqls_1.push("        await queryRunner.query(`" + query.replace(new RegExp("`", "g"), "\\`") + "`);");
+                            sqlInMemory.downQueries.forEach(function (downQuery) {
+                                downSqls_1.push("        await queryRunner.query(`" + downQuery.query.replace(new RegExp("`", "g"), "\\`") + "`);");
                             });
                         }
                         if (!upSqls_1.length) return [3 /*break*/, 12];

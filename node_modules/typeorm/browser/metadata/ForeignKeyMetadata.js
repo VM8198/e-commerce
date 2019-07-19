@@ -26,8 +26,9 @@ var ForeignKeyMetadata = /** @class */ (function () {
         this.referencedEntityMetadata = options.referencedEntityMetadata;
         this.columns = options.columns;
         this.referencedColumns = options.referencedColumns;
-        this.onDelete = options.onDelete;
-        this.onUpdate = options.onUpdate;
+        this.onDelete = options.onDelete || "NO ACTION";
+        this.onUpdate = options.onUpdate || "NO ACTION";
+        this.deferrable = options.deferrable;
         if (options.namingStrategy)
             this.build(options.namingStrategy);
     }

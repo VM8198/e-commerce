@@ -1,15 +1,17 @@
-import { QueryRunner } from "../../query-runner/QueryRunner";
-import { TableColumn } from "../../schema-builder/table/TableColumn";
-import { Table } from "../../schema-builder/table/Table";
-import { TableIndex } from "../../schema-builder/table/TableIndex";
-import { TableForeignKey } from "../../schema-builder/table/TableForeignKey";
-import { PostgresDriver } from "./PostgresDriver";
 import { ReadStream } from "../../platform/PlatformTools";
-import { TableUnique } from "../../schema-builder/table/TableUnique";
 import { BaseQueryRunner } from "../../query-runner/BaseQueryRunner";
+import { QueryRunner } from "../../query-runner/QueryRunner";
+import { Table } from "../../schema-builder/table/Table";
 import { TableCheck } from "../../schema-builder/table/TableCheck";
-import { IsolationLevel } from "../types/IsolationLevel";
+import { TableColumn } from "../../schema-builder/table/TableColumn";
 import { TableExclusion } from "../../schema-builder/table/TableExclusion";
+import { TableForeignKey } from "../../schema-builder/table/TableForeignKey";
+import { TableIndex } from "../../schema-builder/table/TableIndex";
+import { TableUnique } from "../../schema-builder/table/TableUnique";
+import { View } from "../../schema-builder/view/View";
+import { Query } from "../Query";
+import { IsolationLevel } from "../types/IsolationLevel";
+import { PostgresDriver } from "./PostgresDriver";
 /**
  * Runs queries on a single postgres database connection.
  */
@@ -110,6 +112,14 @@ export declare class PostgresQueryRunner extends BaseQueryRunner implements Quer
      * Drops the table.
      */
     dropTable(target: Table | string, ifExist?: boolean, dropForeignKeys?: boolean, dropIndices?: boolean): Promise<void>;
+    /**
+     * Creates a new view.
+     */
+    createView(view: View): Promise<void>;
+    /**
+     * Drops the view.
+     */
+    dropView(target: View | string): Promise<void>;
     /**
      * Renames the given table.
      */
@@ -246,6 +256,7 @@ export declare class PostgresQueryRunner extends BaseQueryRunner implements Quer
      * Removes all tables from the currently connected database.
      */
     clearDatabase(): Promise<void>;
+    protected loadViews(viewNames: string[]): Promise<View[]>;
     /**
      * Loads all tables (with given names) from the database and creates a Table from them.
      */
@@ -253,7 +264,21 @@ export declare class PostgresQueryRunner extends BaseQueryRunner implements Quer
     /**
      * Builds create table sql.
      */
-    protected createTableSql(table: Table, createForeignKeys?: boolean): string;
+    protected createTableSql(table: Table, createForeignKeys?: boolean): Query;
+    /**
+     * Builds drop table sql.
+     */
+    protected dropTableSql(tableOrPath: Table | string): Query;
+    protected createViewSql(view: View): Query;
+    protected insertViewDefinitionSql(view: View): Promise<Query>;
+    /**
+     * Builds drop view sql.
+     */
+    protected dropViewSql(viewOrPath: View | string): Query;
+    /**
+     * Builds remove view sql.
+     */
+    protected deleteViewDefinitionSql(viewOrPath: View | string): Promise<Query>;
     /**
      * Extracts schema name from given Table object or table name string.
      */
@@ -269,63 +294,59 @@ export declare class PostgresQueryRunner extends BaseQueryRunner implements Quer
     /**
      * Builds create ENUM type sql.
      */
-    protected createEnumTypeSql(table: Table, column: TableColumn, enumName?: string): string;
+    protected createEnumTypeSql(table: Table, column: TableColumn, enumName?: string): Query;
     /**
      * Builds create ENUM type sql.
      */
-    protected dropEnumTypeSql(table: Table, column: TableColumn, enumName?: string): string;
-    /**
-     * Builds drop table sql.
-     */
-    protected dropTableSql(tableOrPath: Table | string): string;
+    protected dropEnumTypeSql(table: Table, column: TableColumn, enumName?: string): Query;
     /**
      * Builds create index sql.
      */
-    protected createIndexSql(table: Table, index: TableIndex): string;
+    protected createIndexSql(table: Table, index: TableIndex): Query;
     /**
      * Builds drop index sql.
      */
-    protected dropIndexSql(table: Table, indexOrName: TableIndex | string): string;
+    protected dropIndexSql(table: Table, indexOrName: TableIndex | string): Query;
     /**
      * Builds create primary key sql.
      */
-    protected createPrimaryKeySql(table: Table, columnNames: string[]): string;
+    protected createPrimaryKeySql(table: Table, columnNames: string[]): Query;
     /**
      * Builds drop primary key sql.
      */
-    protected dropPrimaryKeySql(table: Table): string;
+    protected dropPrimaryKeySql(table: Table): Query;
     /**
      * Builds create unique constraint sql.
      */
-    protected createUniqueConstraintSql(table: Table, uniqueConstraint: TableUnique): string;
+    protected createUniqueConstraintSql(table: Table, uniqueConstraint: TableUnique): Query;
     /**
      * Builds drop unique constraint sql.
      */
-    protected dropUniqueConstraintSql(table: Table, uniqueOrName: TableUnique | string): string;
+    protected dropUniqueConstraintSql(table: Table, uniqueOrName: TableUnique | string): Query;
     /**
      * Builds create check constraint sql.
      */
-    protected createCheckConstraintSql(table: Table, checkConstraint: TableCheck): string;
+    protected createCheckConstraintSql(table: Table, checkConstraint: TableCheck): Query;
     /**
      * Builds drop check constraint sql.
      */
-    protected dropCheckConstraintSql(table: Table, checkOrName: TableCheck | string): string;
+    protected dropCheckConstraintSql(table: Table, checkOrName: TableCheck | string): Query;
     /**
      * Builds create exclusion constraint sql.
      */
-    protected createExclusionConstraintSql(table: Table, exclusionConstraint: TableExclusion): string;
+    protected createExclusionConstraintSql(table: Table, exclusionConstraint: TableExclusion): Query;
     /**
      * Builds drop exclusion constraint sql.
      */
-    protected dropExclusionConstraintSql(table: Table, exclusionOrName: TableExclusion | string): string;
+    protected dropExclusionConstraintSql(table: Table, exclusionOrName: TableExclusion | string): Query;
     /**
      * Builds create foreign key sql.
      */
-    protected createForeignKeySql(table: Table, foreignKey: TableForeignKey): string;
+    protected createForeignKeySql(table: Table, foreignKey: TableForeignKey): Query;
     /**
      * Builds drop foreign key sql.
      */
-    protected dropForeignKeySql(table: Table, foreignKeyOrName: TableForeignKey | string): string;
+    protected dropForeignKeySql(table: Table, foreignKeyOrName: TableForeignKey | string): Query;
     /**
      * Builds sequence name from given table and column.
      */
@@ -334,10 +355,14 @@ export declare class PostgresQueryRunner extends BaseQueryRunner implements Quer
      * Builds ENUM type name from given table and column.
      */
     protected buildEnumName(table: Table, columnOrName: TableColumn | string, withSchema?: boolean, disableEscape?: boolean, toOld?: boolean): string;
+    protected getEnumTypeName(table: Table, column: TableColumn): Promise<{
+        enumTypeSchema: any;
+        enumTypeName: any;
+    }>;
     /**
-     * Escapes given table path.
+     * Escapes given table or view path.
      */
-    protected escapeTableName(target: Table | string, disableEscape?: boolean): string;
+    protected escapePath(target: Table | View | string, disableEscape?: boolean): string;
     /**
      * Returns object with table schema and table name.
      */

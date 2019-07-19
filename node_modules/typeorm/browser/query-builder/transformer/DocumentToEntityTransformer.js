@@ -82,9 +82,11 @@ var DocumentToEntityTransformer = /** @class */ (function () {
                     });
                 }
                 else {
+                    if (embedded.embeddeds.length && !entity[embedded.propertyName])
+                        entity[embedded.propertyName] = embedded.create();
                     embedded.columns.forEach(function (column) {
                         var value = document[embedded.prefix][column.databaseNameWithoutPrefixes];
-                        if (!value)
+                        if (value === undefined)
                             return;
                         if (!entity[embedded.propertyName])
                             entity[embedded.propertyName] = embedded.create();

@@ -133,6 +133,7 @@ var RelationMetadata = /** @class */ (function () {
         this.isNullable = args.options.nullable === false || this.isPrimary ? false : true;
         this.onDelete = args.options.onDelete;
         this.onUpdate = args.options.onUpdate;
+        this.deferrable = args.options.deferrable;
         this.isEager = args.options.eager || false;
         this.persistenceEnabled = args.options.persistence === false ? false : true;
         this.isTreeParent = args.isTreeParent || false;

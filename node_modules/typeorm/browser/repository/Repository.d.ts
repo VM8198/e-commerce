@@ -84,6 +84,10 @@ export declare class Repository<Entity extends ObjectLiteral> {
     save<T extends DeepPartial<Entity>>(entities: T[], options: SaveOptions & {
         reload: false;
     }): Promise<T[]>;
+    /**
+     * Saves all given entities in the database.
+     * If entities do not exist in the database then inserts, otherwise updates.
+     */
     save<T extends DeepPartial<Entity>>(entities: T[], options?: SaveOptions): Promise<(T & Entity)[]>;
     /**
      * Saves a given entity in the database.
@@ -92,6 +96,10 @@ export declare class Repository<Entity extends ObjectLiteral> {
     save<T extends DeepPartial<Entity>>(entity: T, options: SaveOptions & {
         reload: false;
     }): Promise<T>;
+    /**
+     * Saves a given entity in the database.
+     * If entity does not exist in the database then inserts, otherwise updates.
+     */
     save<T extends DeepPartial<Entity>>(entity: T, options?: SaveOptions): Promise<T & Entity>;
     /**
      * Removes a given entities from the database.
@@ -107,21 +115,21 @@ export declare class Repository<Entity extends ObjectLiteral> {
      * Executes fast and efficient INSERT query.
      * Does not check if entity exist in the database, so query will fail if duplicate entity is being inserted.
      */
-    insert(entity: QueryDeepPartialEntity<Entity> | (QueryDeepPartialEntity<Entity>[]), options?: SaveOptions): Promise<InsertResult>;
+    insert(entity: QueryDeepPartialEntity<Entity> | (QueryDeepPartialEntity<Entity>[])): Promise<InsertResult>;
     /**
      * Updates entity partially. Entity can be found by a given conditions.
      * Unlike save method executes a primitive operation without cascades, relations and other operations included.
      * Executes fast and efficient UPDATE query.
      * Does not check if entity exist in the database.
      */
-    update(criteria: string | string[] | number | number[] | Date | Date[] | ObjectID | ObjectID[] | FindConditions<Entity>, partialEntity: QueryDeepPartialEntity<Entity>, options?: SaveOptions): Promise<UpdateResult>;
+    update(criteria: string | string[] | number | number[] | Date | Date[] | ObjectID | ObjectID[] | FindConditions<Entity>, partialEntity: QueryDeepPartialEntity<Entity>): Promise<UpdateResult>;
     /**
      * Deletes entities by a given criteria.
      * Unlike save method executes a primitive operation without cascades, relations and other operations included.
      * Executes fast and efficient DELETE query.
      * Does not check if entity exist in the database.
      */
-    delete(criteria: string | string[] | number | number[] | Date | Date[] | ObjectID | ObjectID[] | FindConditions<Entity>, options?: RemoveOptions): Promise<DeleteResult>;
+    delete(criteria: string | string[] | number | number[] | Date | Date[] | ObjectID | ObjectID[] | FindConditions<Entity>): Promise<DeleteResult>;
     /**
      * Counts entities that match given options.
      */

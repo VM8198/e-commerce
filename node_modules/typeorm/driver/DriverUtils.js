@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = require("tslib");
+var StringUtils_1 = require("../util/StringUtils");
 /**
 * Common driver utility functions.
 */
@@ -32,6 +33,27 @@ var DriverUtils = /** @class */ (function () {
         }
         return Object.assign({}, options);
     };
+    /**
+     * Builds column alias from given alias name and column name,
+     * If alias length is greater than the limit (if any) allowed by the current
+     * driver, abbreviates the longest part (alias or column name) in the resulting
+     * alias.
+     *
+     * @param driver Current `Driver`.
+     * @param alias Alias part.
+     * @param column Name of the column to be concatened to `alias`.
+     *
+     * @return An alias allowing to select/transform the target `column`.
+     */
+    DriverUtils.buildColumnAlias = function (_a, alias, column) {
+        var maxAliasLength = _a.maxAliasLength;
+        var columnAliasName = alias + "_" + column;
+        if (maxAliasLength && maxAliasLength > 0 && columnAliasName.length > maxAliasLength)
+            return alias.length > column.length
+                ? StringUtils_1.shorten(alias) + "_" + column
+                : alias + "_" + StringUtils_1.shorten(column);
+        return columnAliasName;
+    };
     // -------------------------------------------------------------------------
     // Private Static Methods
     // -------------------------------------------------------------------------
@@ -59,8 +81,8 @@ var DriverUtils = /** @class */ (function () {
         return {
             type: type,
             host: host,
-            username: username,
-            password: password,
+            username: decodeURIComponent(username),
+            password: decodeURIComponent(password),
             port: port ? parseInt(port) : undefined,
             database: afterBase || undefined
         };

@@ -1,22 +1,22 @@
-import { ColumnMetadata } from "./ColumnMetadata";
-import { RelationMetadata } from "./RelationMetadata";
-import { IndexMetadata } from "./IndexMetadata";
-import { ForeignKeyMetadata } from "./ForeignKeyMetadata";
-import { EmbeddedMetadata } from "./EmbeddedMetadata";
+import { QueryRunner, SelectQueryBuilder } from "..";
 import { ObjectLiteral } from "../common/ObjectLiteral";
-import { RelationIdMetadata } from "./RelationIdMetadata";
-import { RelationCountMetadata } from "./RelationCountMetadata";
-import { TableType } from "./types/TableTypes";
+import { Connection } from "../connection/Connection";
 import { OrderByCondition } from "../find-options/OrderByCondition";
 import { TableMetadataArgs } from "../metadata-args/TableMetadataArgs";
-import { Connection } from "../connection/Connection";
-import { EntityListenerMetadata } from "./EntityListenerMetadata";
-import { TreeType } from "./types/TreeTypes";
 import { TreeMetadataArgs } from "../metadata-args/TreeMetadataArgs";
-import { UniqueMetadata } from "./UniqueMetadata";
 import { CheckMetadata } from "./CheckMetadata";
-import { QueryRunner } from "..";
+import { ColumnMetadata } from "./ColumnMetadata";
+import { EmbeddedMetadata } from "./EmbeddedMetadata";
+import { EntityListenerMetadata } from "./EntityListenerMetadata";
 import { ExclusionMetadata } from "./ExclusionMetadata";
+import { ForeignKeyMetadata } from "./ForeignKeyMetadata";
+import { IndexMetadata } from "./IndexMetadata";
+import { RelationCountMetadata } from "./RelationCountMetadata";
+import { RelationIdMetadata } from "./RelationIdMetadata";
+import { RelationMetadata } from "./RelationMetadata";
+import { TableType } from "./types/TableTypes";
+import { TreeType } from "./types/TreeTypes";
+import { UniqueMetadata } from "./UniqueMetadata";
 /**
  * Contains all entity metadata.
  */
@@ -71,6 +71,11 @@ export declare class EntityMetadata {
      * If target class is not then then it equals to table name.
      */
     name: string;
+    /**
+     * View's expression.
+     * Used in views
+     */
+    expression?: string | ((connection: Connection) => SelectQueryBuilder<any>);
     /**
      * Original user-given table name (taken from schema or @Entity(tableName) decorator).
      * If user haven't specified a table name this property will be undefined.
@@ -319,6 +324,10 @@ export declare class EntityMetadata {
      * Entity's unique metadatas.
      */
     uniques: UniqueMetadata[];
+    /**
+     * Entity's own uniques.
+     */
+    ownUniques: UniqueMetadata[];
     /**
      * Entity's check metadatas.
      */

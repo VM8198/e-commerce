@@ -1,16 +1,18 @@
+import { ReadStream } from "../../platform/PlatformTools";
+import { BaseQueryRunner } from "../../query-runner/BaseQueryRunner";
 import { QueryRunner } from "../../query-runner/QueryRunner";
-import { TableColumn } from "../../schema-builder/table/TableColumn";
 import { Table } from "../../schema-builder/table/Table";
+import { TableCheck } from "../../schema-builder/table/TableCheck";
+import { TableColumn } from "../../schema-builder/table/TableColumn";
+import { TableExclusion } from "../../schema-builder/table/TableExclusion";
 import { TableForeignKey } from "../../schema-builder/table/TableForeignKey";
 import { TableIndex } from "../../schema-builder/table/TableIndex";
-import { SqlServerDriver } from "./SqlServerDriver";
-import { ReadStream } from "../../platform/PlatformTools";
-import { MssqlParameter } from "./MssqlParameter";
 import { TableUnique } from "../../schema-builder/table/TableUnique";
-import { TableCheck } from "../../schema-builder/table/TableCheck";
-import { BaseQueryRunner } from "../../query-runner/BaseQueryRunner";
+import { View } from "../../schema-builder/view/View";
+import { Query } from "../Query";
 import { IsolationLevel } from "../types/IsolationLevel";
-import { TableExclusion } from "../../schema-builder/table/TableExclusion";
+import { MssqlParameter } from "./MssqlParameter";
+import { SqlServerDriver } from "./SqlServerDriver";
 /**
  * Runs queries on a single SQL Server database connection.
  */
@@ -111,6 +113,14 @@ export declare class SqlServerQueryRunner extends BaseQueryRunner implements Que
      * Drops the table.
      */
     dropTable(tableOrName: Table | string, ifExist?: boolean, dropForeignKeys?: boolean, dropIndices?: boolean): Promise<void>;
+    /**
+     * Creates a new view.
+     */
+    createView(view: View): Promise<void>;
+    /**
+     * Drops the view.
+     */
+    dropView(target: View | string): Promise<void>;
     /**
      * Renames a table.
      */
@@ -255,6 +265,7 @@ export declare class SqlServerQueryRunner extends BaseQueryRunner implements Que
      * Return current schema.
      */
     protected getCurrentSchema(): Promise<string>;
+    protected loadViews(viewPaths: string[]): Promise<View[]>;
     /**
      * Loads all tables (with given names) from the database and creates a Table from them.
      */
@@ -262,59 +273,69 @@ export declare class SqlServerQueryRunner extends BaseQueryRunner implements Que
     /**
      * Builds and returns SQL for create table.
      */
-    protected createTableSql(table: Table, createForeignKeys?: boolean): string;
+    protected createTableSql(table: Table, createForeignKeys?: boolean): Query;
     /**
      * Builds drop table sql.
      */
-    protected dropTableSql(tableOrName: Table | string, ifExist?: boolean): string;
+    protected dropTableSql(tableOrName: Table | string, ifExist?: boolean): Query;
+    protected createViewSql(view: View): Query;
+    protected insertViewDefinitionSql(view: View): Promise<Query>;
+    /**
+     * Builds drop view sql.
+     */
+    protected dropViewSql(viewOrPath: View | string): Query;
+    /**
+     * Builds remove view sql.
+     */
+    protected deleteViewDefinitionSql(viewOrPath: View | string): Promise<Query>;
     /**
      * Builds create index sql.
      */
-    protected createIndexSql(table: Table, index: TableIndex): string;
+    protected createIndexSql(table: Table, index: TableIndex): Query;
     /**
      * Builds drop index sql.
      */
-    protected dropIndexSql(table: Table, indexOrName: TableIndex | string): string;
+    protected dropIndexSql(table: Table, indexOrName: TableIndex | string): Query;
     /**
      * Builds create primary key sql.
      */
-    protected createPrimaryKeySql(table: Table, columnNames: string[]): string;
+    protected createPrimaryKeySql(table: Table, columnNames: string[]): Query;
     /**
      * Builds drop primary key sql.
      */
-    protected dropPrimaryKeySql(table: Table): string;
+    protected dropPrimaryKeySql(table: Table): Query;
     /**
      * Builds create unique constraint sql.
      */
-    protected createUniqueConstraintSql(table: Table, uniqueConstraint: TableUnique): string;
+    protected createUniqueConstraintSql(table: Table, uniqueConstraint: TableUnique): Query;
     /**
      * Builds drop unique constraint sql.
      */
-    protected dropUniqueConstraintSql(table: Table, uniqueOrName: TableUnique | string): string;
+    protected dropUniqueConstraintSql(table: Table, uniqueOrName: TableUnique | string): Query;
     /**
      * Builds create check constraint sql.
      */
-    protected createCheckConstraintSql(table: Table, checkConstraint: TableCheck): string;
+    protected createCheckConstraintSql(table: Table, checkConstraint: TableCheck): Query;
     /**
      * Builds drop check constraint sql.
      */
-    protected dropCheckConstraintSql(table: Table, checkOrName: TableCheck | string): string;
+    protected dropCheckConstraintSql(table: Table, checkOrName: TableCheck | string): Query;
     /**
      * Builds create foreign key sql.
      */
-    protected createForeignKeySql(table: Table, foreignKey: TableForeignKey): string;
+    protected createForeignKeySql(table: Table, foreignKey: TableForeignKey): Query;
     /**
      * Builds drop foreign key sql.
      */
-    protected dropForeignKeySql(table: Table, foreignKeyOrName: TableForeignKey | string): string;
+    protected dropForeignKeySql(table: Table, foreignKeyOrName: TableForeignKey | string): Query;
     /**
-     * Escapes given table name.
+     * Escapes given table or View path.
      */
-    protected escapeTableName(tableOrName: Table | string, disableEscape?: boolean): string;
-    protected parseTableName(target: Table | string): {
+    protected escapePath(target: Table | View | string, disableEscape?: boolean): string;
+    protected parseTableName(target: Table | View | string, schema?: string): {
         database: string | undefined;
         schema: string;
-        tableName: string;
+        name: string;
     };
     /**
      * Concat database name and schema name to the foreign key name.

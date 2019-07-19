@@ -7,6 +7,7 @@ import { PlatformTools } from "../../platform/PlatformTools";
 import { RdbmsSchemaBuilder } from "../../schema-builder/RdbmsSchemaBuilder";
 import { DriverUtils } from "../DriverUtils";
 import { OrmUtils } from "../../util/OrmUtils";
+import { ApplyValueTransformers } from "../../util/ApplyValueTransformers";
 /**
  * Organizes communication with Oracle RDBMS.
  */
@@ -116,6 +117,12 @@ var OracleDriver = /** @class */ (function () {
             cacheDuration: "number",
             cacheQuery: "clob",
             cacheResult: "clob",
+            metadataType: "varchar2",
+            metadataDatabase: "varchar2",
+            metadataSchema: "varchar2",
+            metadataTable: "varchar2",
+            metadataName: "varchar2",
+            metadataValue: "clob",
         };
         /**
          * Default values of length, precision and scale depends on column data type.
@@ -133,6 +140,19 @@ var OracleDriver = /** @class */ (function () {
             "timestamp with time zone": { precision: 6 },
             "timestamp with local time zone": { precision: 6 }
         };
+        /**
+         * Max length allowed by Oracle for aliases.
+         * @see https://docs.oracle.com/database/121/SQLRF/sql_elements008.htm#SQLRF51129
+         * > The following list of rules applies to both quoted and nonquoted identifiers unless otherwise indicated
+         * > Names must be from 1 to 30 bytes long with these exceptions:
+         * > [...]
+         *
+         * Since Oracle 12.2 (with a compatible driver/client), the limit has been set to 128.
+         * @see https://docs.oracle.com/en/database/oracle/oracle-database/12.2/sqlrf/Database-Object-Names-and-Qualifiers.html
+         *
+         * > If COMPATIBLE is set to a value of 12.2 or higher, then names must be from 1 to 128 bytes long with these exceptions
+         */
+        this.maxAliasLength = 30;
         this.connection = connection;
         this.options = connection.options;
         // load oracle package
@@ -294,7 +314,7 @@ var OracleDriver = /** @class */ (function () {
      */
     OracleDriver.prototype.preparePersistentValue = function (value, columnMetadata) {
         if (columnMetadata.transformer)
-            value = columnMetadata.transformer.to(value);
+            value = ApplyValueTransformers.transformTo(columnMetadata.transformer, value);
         if (value === null || value === undefined)
             return value;
         if (columnMetadata.type === Boolean) {
@@ -324,9 +344,9 @@ var OracleDriver = /** @class */ (function () {
      */
     OracleDriver.prototype.prepareHydratedValue = function (value, columnMetadata) {
         if (value === null || value === undefined)
-            return columnMetadata.transformer ? columnMetadata.transformer.from(value) : value;
+            return columnMetadata.transformer ? ApplyValueTransformers.transformFrom(columnMetadata.transformer, value) : value;
         if (columnMetadata.type === Boolean) {
-            value = value === 1 ? true : false;
+            value = value ? true : false;
         }
         else if (columnMetadata.type === "date") {
             value = DateUtils.mixedDateToDateString(value);
@@ -350,7 +370,7 @@ var OracleDriver = /** @class */ (function () {
             value = DateUtils.stringToSimpleJson(value);
         }
         if (columnMetadata.transformer)
-            value = columnMetadata.transformer.from(value);
+            value = ApplyValueTransformers.transformFrom(columnMetadata.transformer, value);
         return value;
     };
     /**
@@ -493,12 +513,13 @@ var OracleDriver = /** @class */ (function () {
      * Creates generated map of values generated or returned by database after INSERT query.
      */
     OracleDriver.prototype.createGeneratedMap = function (metadata, insertResult) {
+        var _this = this;
         if (!insertResult)
             return undefined;
         return Object.keys(insertResult).reduce(function (map, key) {
             var column = metadata.findColumnWithDatabaseName(key);
             if (column) {
-                OrmUtils.mergeDeep(map, column.createValueMap(insertResult[key]));
+                OrmUtils.mergeDeep(map, column.createValueMap(_this.prepareHydratedValue(insertResult[key], column)));
             }
             return map;
         }, {});

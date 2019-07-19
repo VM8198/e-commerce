@@ -1,4 +1,5 @@
 import { MissingDriverError } from "../error/MissingDriverError";
+import { CockroachDriver } from "./cockroachdb/CockroachDriver";
 import { MongoDriver } from "./mongodb/MongoDriver";
 import { SqlServerDriver } from "./sqlserver/SqlServerDriver";
 import { OracleDriver } from "./oracle/OracleDriver";
@@ -26,6 +27,8 @@ var DriverFactory = /** @class */ (function () {
                 return new MysqlDriver(connection);
             case "postgres":
                 return new PostgresDriver(connection);
+            case "cockroachdb":
+                return new CockroachDriver(connection);
             case "mariadb":
                 return new MysqlDriver(connection);
             case "sqlite":

@@ -6,6 +6,8 @@ import { Table } from "../../schema-builder/table/Table";
 import { TableForeignKey } from "../../schema-builder/table/TableForeignKey";
 import { TableIndex } from "../../schema-builder/table/TableIndex";
 import { QueryRunnerAlreadyReleasedError } from "../../error/QueryRunnerAlreadyReleasedError";
+import { View } from "../../schema-builder/view/View";
+import { Query } from "../Query";
 import { OrmUtils } from "../../util/OrmUtils";
 import { QueryFailedError } from "../../error/QueryFailedError";
 import { TableUnique } from "../../schema-builder/table/TableUnique";
@@ -306,7 +308,7 @@ var MysqlQueryRunner = /** @class */ (function (_super) {
                     case 0:
                         up = ifNotExist ? "CREATE DATABASE IF NOT EXISTS `" + database + "`" : "CREATE DATABASE `" + database + "`";
                         down = "DROP DATABASE `" + database + "`";
-                        return [4 /*yield*/, this.executeQueries(up, down)];
+                        return [4 /*yield*/, this.executeQueries(new Query(up), new Query(down))];
                     case 1:
                         _a.sent();
                         return [2 /*return*/];
@@ -325,7 +327,7 @@ var MysqlQueryRunner = /** @class */ (function (_super) {
                     case 0:
                         up = ifExist ? "DROP DATABASE IF EXISTS `" + database + "`" : "DROP DATABASE `" + database + "`";
                         down = "CREATE DATABASE `" + database + "`";
-                        return [4 /*yield*/, this.executeQueries(up, down)];
+                        return [4 /*yield*/, this.executeQueries(new Query(up), new Query(down))];
                     case 1:
                         _a.sent();
                         return [2 /*return*/];
@@ -431,6 +433,68 @@ var MysqlQueryRunner = /** @class */ (function (_super) {
         });
     };
     /**
+     * Creates a new view.
+     */
+    MysqlQueryRunner.prototype.createView = function (view) {
+        return tslib_1.__awaiter(this, void 0, void 0, function () {
+            var upQueries, downQueries, _a, _b, _c, _d;
+            return tslib_1.__generator(this, function (_e) {
+                switch (_e.label) {
+                    case 0:
+                        upQueries = [];
+                        downQueries = [];
+                        upQueries.push(this.createViewSql(view));
+                        _b = (_a = upQueries).push;
+                        return [4 /*yield*/, this.insertViewDefinitionSql(view)];
+                    case 1:
+                        _b.apply(_a, [_e.sent()]);
+                        downQueries.push(this.dropViewSql(view));
+                        _d = (_c = downQueries).push;
+                        return [4 /*yield*/, this.deleteViewDefinitionSql(view)];
+                    case 2:
+                        _d.apply(_c, [_e.sent()]);
+                        return [4 /*yield*/, this.executeQueries(upQueries, downQueries)];
+                    case 3:
+                        _e.sent();
+                        return [2 /*return*/];
+                }
+            });
+        });
+    };
+    /**
+     * Drops the view.
+     */
+    MysqlQueryRunner.prototype.dropView = function (target) {
+        return tslib_1.__awaiter(this, void 0, void 0, function () {
+            var viewName, view, upQueries, downQueries, _a, _b, _c, _d;
+            return tslib_1.__generator(this, function (_e) {
+                switch (_e.label) {
+                    case 0:
+                        viewName = target instanceof View ? target.name : target;
+                        return [4 /*yield*/, this.getCachedView(viewName)];
+                    case 1:
+                        view = _e.sent();
+                        upQueries = [];
+                        downQueries = [];
+                        _b = (_a = upQueries).push;
+                        return [4 /*yield*/, this.deleteViewDefinitionSql(view)];
+                    case 2:
+                        _b.apply(_a, [_e.sent()]);
+                        upQueries.push(this.dropViewSql(view));
+                        _d = (_c = downQueries).push;
+                        return [4 /*yield*/, this.insertViewDefinitionSql(view)];
+                    case 3:
+                        _d.apply(_c, [_e.sent()]);
+                        downQueries.push(this.createViewSql(view));
+                        return [4 /*yield*/, this.executeQueries(upQueries, downQueries)];
+                    case 4:
+                        _e.sent();
+                        return [2 /*return*/];
+                }
+            });
+        });
+    };
+    /**
      * Renames a table.
      */
     MysqlQueryRunner.prototype.renameTable = function (oldTableOrName, newTableName) {
@@ -455,8 +519,8 @@ var MysqlQueryRunner = /** @class */ (function (_super) {
                         dbName = oldTable.name.indexOf(".") === -1 ? undefined : oldTable.name.split(".")[0];
                         newTable.name = dbName ? dbName + "." + newTableName : newTableName;
                         // rename table
-                        upQueries.push("RENAME TABLE " + this.escapeTableName(oldTable.name) + " TO " + this.escapeTableName(newTable.name));
-                        downQueries.push("RENAME TABLE " + this.escapeTableName(newTable.name) + " TO " + this.escapeTableName(oldTable.name));
+                        upQueries.push(new Query("RENAME TABLE " + this.escapePath(oldTable.name) + " TO " + this.escapePath(newTable.name)));
+                        downQueries.push(new Query("RENAME TABLE " + this.escapePath(newTable.name) + " TO " + this.escapePath(oldTable.name)));
                         // rename index constraints
                         newTable.indices.forEach(function (index) {
                             // build new constraint name
@@ -470,8 +534,8 @@ var MysqlQueryRunner = /** @class */ (function (_super) {
                                 indexType += "SPATIAL ";
                             if (index.isFulltext)
                                 indexType += "FULLTEXT ";
-                            upQueries.push("ALTER TABLE " + _this.escapeTableName(newTable) + " DROP INDEX `" + index.name + "`, ADD " + indexType + "INDEX `" + newIndexName + "` (" + columnNames + ")");
-                            downQueries.push("ALTER TABLE " + _this.escapeTableName(newTable) + " DROP INDEX `" + newIndexName + "`, ADD " + indexType + "INDEX `" + index.name + "` (" + columnNames + ")");
+                            upQueries.push(new Query("ALTER TABLE " + _this.escapePath(newTable) + " DROP INDEX `" + index.name + "`, ADD " + indexType + "INDEX `" + newIndexName + "` (" + columnNames + ")"));
+                            downQueries.push(new Query("ALTER TABLE " + _this.escapePath(newTable) + " DROP INDEX `" + newIndexName + "`, ADD " + indexType + "INDEX `" + index.name + "` (" + columnNames + ")"));
                             // replace constraint name
                             index.name = newIndexName;
                         });
@@ -482,20 +546,20 @@ var MysqlQueryRunner = /** @class */ (function (_super) {
                             var referencedColumnNames = foreignKey.referencedColumnNames.map(function (column) { return "`" + column + "`"; }).join(",");
                             var newForeignKeyName = _this.connection.namingStrategy.foreignKeyName(newTable, foreignKey.columnNames);
                             // build queries
-                            var up = "ALTER TABLE " + _this.escapeTableName(newTable) + " DROP FOREIGN KEY `" + foreignKey.name + "`, ADD CONSTRAINT `" + newForeignKeyName + "` FOREIGN KEY (" + columnNames + ") " +
-                                ("REFERENCES " + _this.escapeTableName(foreignKey.referencedTableName) + "(" + referencedColumnNames + ")");
+                            var up = "ALTER TABLE " + _this.escapePath(newTable) + " DROP FOREIGN KEY `" + foreignKey.name + "`, ADD CONSTRAINT `" + newForeignKeyName + "` FOREIGN KEY (" + columnNames + ") " +
+                                ("REFERENCES " + _this.escapePath(foreignKey.referencedTableName) + "(" + referencedColumnNames + ")");
                             if (foreignKey.onDelete)
                                 up += " ON DELETE " + foreignKey.onDelete;
                             if (foreignKey.onUpdate)
                                 up += " ON UPDATE " + foreignKey.onUpdate;
-                            var down = "ALTER TABLE " + _this.escapeTableName(newTable) + " DROP FOREIGN KEY `" + newForeignKeyName + "`, ADD CONSTRAINT `" + foreignKey.name + "` FOREIGN KEY (" + columnNames + ") " +
-                                ("REFERENCES " + _this.escapeTableName(foreignKey.referencedTableName) + "(" + referencedColumnNames + ")");
+                            var down = "ALTER TABLE " + _this.escapePath(newTable) + " DROP FOREIGN KEY `" + newForeignKeyName + "`, ADD CONSTRAINT `" + foreignKey.name + "` FOREIGN KEY (" + columnNames + ") " +
+                                ("REFERENCES " + _this.escapePath(foreignKey.referencedTableName) + "(" + referencedColumnNames + ")");
                             if (foreignKey.onDelete)
                                 down += " ON DELETE " + foreignKey.onDelete;
                             if (foreignKey.onUpdate)
                                 down += " ON UPDATE " + foreignKey.onUpdate;
-                            upQueries.push(up);
-                            downQueries.push(down);
+                            upQueries.push(new Query(up));
+                            downQueries.push(new Query(down));
                             // replace constraint name
                             foreignKey.name = newForeignKeyName;
                         });
@@ -532,8 +596,8 @@ var MysqlQueryRunner = /** @class */ (function (_super) {
                         upQueries = [];
                         downQueries = [];
                         skipColumnLevelPrimary = clonedTable.primaryColumns.length > 0;
-                        upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD " + this.buildCreateColumnSql(column, skipColumnLevelPrimary, false));
-                        downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP COLUMN `" + column.name + "`");
+                        upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ADD " + this.buildCreateColumnSql(column, skipColumnLevelPrimary, false)));
+                        downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " DROP COLUMN `" + column.name + "`"));
                         // create or update primary key constraint
                         if (column.isPrimary && skipColumnLevelPrimary) {
                             generatedColumn = clonedTable.columns.find(function (column) { return column.isGenerated && column.generationStrategy === "increment"; });
@@ -541,24 +605,24 @@ var MysqlQueryRunner = /** @class */ (function (_super) {
                                 nonGeneratedColumn = generatedColumn.clone();
                                 nonGeneratedColumn.isGenerated = false;
                                 nonGeneratedColumn.generationStrategy = undefined;
-                                upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " CHANGE `" + column.name + "` " + this.buildCreateColumnSql(nonGeneratedColumn, true));
-                                downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " CHANGE `" + nonGeneratedColumn.name + "` " + this.buildCreateColumnSql(column, true));
+                                upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " CHANGE `" + column.name + "` " + this.buildCreateColumnSql(nonGeneratedColumn, true)));
+                                downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " CHANGE `" + nonGeneratedColumn.name + "` " + this.buildCreateColumnSql(column, true)));
                             }
                             primaryColumns = clonedTable.primaryColumns;
                             columnNames = primaryColumns.map(function (column) { return "`" + column.name + "`"; }).join(", ");
-                            upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP PRIMARY KEY");
-                            downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD PRIMARY KEY (" + columnNames + ")");
+                            upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " DROP PRIMARY KEY"));
+                            downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ADD PRIMARY KEY (" + columnNames + ")"));
                             primaryColumns.push(column);
                             columnNames = primaryColumns.map(function (column) { return "`" + column.name + "`"; }).join(", ");
-                            upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD PRIMARY KEY (" + columnNames + ")");
-                            downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP PRIMARY KEY");
+                            upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ADD PRIMARY KEY (" + columnNames + ")"));
+                            downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " DROP PRIMARY KEY"));
                             // if we previously dropped AUTO_INCREMENT property, we must bring it back
                             if (generatedColumn) {
                                 nonGeneratedColumn = generatedColumn.clone();
                                 nonGeneratedColumn.isGenerated = false;
                                 nonGeneratedColumn.generationStrategy = undefined;
-                                upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " CHANGE `" + nonGeneratedColumn.name + "` " + this.buildCreateColumnSql(column, true));
-                                downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " CHANGE `" + column.name + "` " + this.buildCreateColumnSql(nonGeneratedColumn, true));
+                                upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " CHANGE `" + nonGeneratedColumn.name + "` " + this.buildCreateColumnSql(column, true)));
+                                downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " CHANGE `" + column.name + "` " + this.buildCreateColumnSql(nonGeneratedColumn, true)));
                             }
                         }
                         columnIndex = clonedTable.indices.find(function (index) { return index.columnNames.length === 1 && index.columnNames[0] === column.name; });
@@ -577,8 +641,8 @@ var MysqlQueryRunner = /** @class */ (function (_super) {
                                 name: uniqueIndex.name,
                                 columnNames: uniqueIndex.columnNames
                             }));
-                            upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD UNIQUE INDEX `" + uniqueIndex.name + "` (`" + column.name + "`)");
-                            downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP INDEX `" + uniqueIndex.name + "`");
+                            upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ADD UNIQUE INDEX `" + uniqueIndex.name + "` (`" + column.name + "`)"));
+                            downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " DROP INDEX `" + uniqueIndex.name + "`"));
                         }
                         return [4 /*yield*/, this.executeQueries(upQueries, downQueries)];
                     case 4:
@@ -686,8 +750,8 @@ var MysqlQueryRunner = /** @class */ (function (_super) {
                     case 6:
                         if (newColumn.name !== oldColumn.name) {
                             // We don't change any column properties, just rename it.
-                            upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " CHANGE `" + oldColumn.name + "` `" + newColumn.name + "` " + this.buildCreateColumnSql(oldColumn, true, true));
-                            downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " CHANGE `" + newColumn.name + "` `" + oldColumn.name + "` " + this.buildCreateColumnSql(oldColumn, true, true));
+                            upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " CHANGE `" + oldColumn.name + "` `" + newColumn.name + "` " + this.buildCreateColumnSql(oldColumn, true, true)));
+                            downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " CHANGE `" + newColumn.name + "` `" + oldColumn.name + "` " + this.buildCreateColumnSql(oldColumn, true, true)));
                             // rename index constraints
                             clonedTable.findColumnIndices(oldColumn).forEach(function (index) {
                                 // build new constraint name
@@ -703,8 +767,8 @@ var MysqlQueryRunner = /** @class */ (function (_super) {
                                     indexType += "SPATIAL ";
                                 if (index.isFulltext)
                                     indexType += "FULLTEXT ";
-                                upQueries.push("ALTER TABLE " + _this.escapeTableName(table) + " DROP INDEX `" + index.name + "`, ADD " + indexType + "INDEX `" + newIndexName + "` (" + columnNames + ")");
-                                downQueries.push("ALTER TABLE " + _this.escapeTableName(table) + " DROP INDEX `" + newIndexName + "`, ADD " + indexType + "INDEX `" + index.name + "` (" + columnNames + ")");
+                                upQueries.push(new Query("ALTER TABLE " + _this.escapePath(table) + " DROP INDEX `" + index.name + "`, ADD " + indexType + "INDEX `" + newIndexName + "` (" + columnNames + ")"));
+                                downQueries.push(new Query("ALTER TABLE " + _this.escapePath(table) + " DROP INDEX `" + newIndexName + "`, ADD " + indexType + "INDEX `" + index.name + "` (" + columnNames + ")"));
                                 // replace constraint name
                                 index.name = newIndexName;
                             });
@@ -717,20 +781,20 @@ var MysqlQueryRunner = /** @class */ (function (_super) {
                                 var referencedColumnNames = foreignKey.referencedColumnNames.map(function (column) { return "`" + column + "`"; }).join(",");
                                 var newForeignKeyName = _this.connection.namingStrategy.foreignKeyName(clonedTable, foreignKey.columnNames);
                                 // build queries
-                                var up = "ALTER TABLE " + _this.escapeTableName(table) + " DROP FOREIGN KEY `" + foreignKey.name + "`, ADD CONSTRAINT `" + newForeignKeyName + "` FOREIGN KEY (" + columnNames + ") " +
-                                    ("REFERENCES " + _this.escapeTableName(foreignKey.referencedTableName) + "(" + referencedColumnNames + ")");
+                                var up = "ALTER TABLE " + _this.escapePath(table) + " DROP FOREIGN KEY `" + foreignKey.name + "`, ADD CONSTRAINT `" + newForeignKeyName + "` FOREIGN KEY (" + columnNames + ") " +
+                                    ("REFERENCES " + _this.escapePath(foreignKey.referencedTableName) + "(" + referencedColumnNames + ")");
                                 if (foreignKey.onDelete)
                                     up += " ON DELETE " + foreignKey.onDelete;
                                 if (foreignKey.onUpdate)
                                     up += " ON UPDATE " + foreignKey.onUpdate;
-                                var down = "ALTER TABLE " + _this.escapeTableName(table) + " DROP FOREIGN KEY `" + newForeignKeyName + "`, ADD CONSTRAINT `" + foreignKey.name + "` FOREIGN KEY (" + columnNames + ") " +
-                                    ("REFERENCES " + _this.escapeTableName(foreignKey.referencedTableName) + "(" + referencedColumnNames + ")");
+                                var down = "ALTER TABLE " + _this.escapePath(table) + " DROP FOREIGN KEY `" + newForeignKeyName + "`, ADD CONSTRAINT `" + foreignKey.name + "` FOREIGN KEY (" + columnNames + ") " +
+                                    ("REFERENCES " + _this.escapePath(foreignKey.referencedTableName) + "(" + referencedColumnNames + ")");
                                 if (foreignKey.onDelete)
                                     down += " ON DELETE " + foreignKey.onDelete;
                                 if (foreignKey.onUpdate)
                                     down += " ON UPDATE " + foreignKey.onUpdate;
-                                upQueries.push(up);
-                                downQueries.push(down);
+                                upQueries.push(new Query(up));
+                                downQueries.push(new Query(down));
                                 // replace constraint name
                                 foreignKey.name = newForeignKeyName;
                             });
@@ -739,8 +803,8 @@ var MysqlQueryRunner = /** @class */ (function (_super) {
                             oldColumn.name = newColumn.name;
                         }
                         if (this.isColumnChanged(oldColumn, newColumn, true)) {
-                            upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " CHANGE `" + oldColumn.name + "` " + this.buildCreateColumnSql(newColumn, true));
-                            downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " CHANGE `" + newColumn.name + "` " + this.buildCreateColumnSql(oldColumn, true));
+                            upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " CHANGE `" + oldColumn.name + "` " + this.buildCreateColumnSql(newColumn, true)));
+                            downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " CHANGE `" + newColumn.name + "` " + this.buildCreateColumnSql(oldColumn, true)));
                         }
                         if (newColumn.isPrimary !== oldColumn.isPrimary) {
                             generatedColumn = clonedTable.columns.find(function (column) { return column.isGenerated && column.generationStrategy === "increment"; });
@@ -748,23 +812,23 @@ var MysqlQueryRunner = /** @class */ (function (_super) {
                                 nonGeneratedColumn = generatedColumn.clone();
                                 nonGeneratedColumn.isGenerated = false;
                                 nonGeneratedColumn.generationStrategy = undefined;
-                                upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " CHANGE `" + generatedColumn.name + "` " + this.buildCreateColumnSql(nonGeneratedColumn, true));
-                                downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " CHANGE `" + nonGeneratedColumn.name + "` " + this.buildCreateColumnSql(generatedColumn, true));
+                                upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " CHANGE `" + generatedColumn.name + "` " + this.buildCreateColumnSql(nonGeneratedColumn, true)));
+                                downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " CHANGE `" + nonGeneratedColumn.name + "` " + this.buildCreateColumnSql(generatedColumn, true)));
                             }
                             primaryColumns = clonedTable.primaryColumns;
                             // if primary column state changed, we must always drop existed constraint.
                             if (primaryColumns.length > 0) {
                                 columnNames = primaryColumns.map(function (column) { return "`" + column.name + "`"; }).join(", ");
-                                upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP PRIMARY KEY");
-                                downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD PRIMARY KEY (" + columnNames + ")");
+                                upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " DROP PRIMARY KEY"));
+                                downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ADD PRIMARY KEY (" + columnNames + ")"));
                             }
                             if (newColumn.isPrimary === true) {
                                 primaryColumns.push(newColumn);
                                 column = clonedTable.columns.find(function (column) { return column.name === newColumn.name; });
                                 column.isPrimary = true;
                                 columnNames = primaryColumns.map(function (column) { return "`" + column.name + "`"; }).join(", ");
-                                upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD PRIMARY KEY (" + columnNames + ")");
-                                downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP PRIMARY KEY");
+                                upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ADD PRIMARY KEY (" + columnNames + ")"));
+                                downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " DROP PRIMARY KEY"));
                             }
                             else {
                                 primaryColumn = primaryColumns.find(function (c) { return c.name === newColumn.name; });
@@ -774,8 +838,8 @@ var MysqlQueryRunner = /** @class */ (function (_super) {
                                 // if we have another primary keys, we must recreate constraint.
                                 if (primaryColumns.length > 0) {
                                     columnNames = primaryColumns.map(function (column) { return "`" + column.name + "`"; }).join(", ");
-                                    upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD PRIMARY KEY (" + columnNames + ")");
-                                    downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP PRIMARY KEY");
+                                    upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ADD PRIMARY KEY (" + columnNames + ")"));
+                                    downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " DROP PRIMARY KEY"));
                                 }
                             }
                             // if we have generated column, and we dropped AUTO_INCREMENT property before, we must bring it back
@@ -783,8 +847,8 @@ var MysqlQueryRunner = /** @class */ (function (_super) {
                                 nonGeneratedColumn = generatedColumn.clone();
                                 nonGeneratedColumn.isGenerated = false;
                                 nonGeneratedColumn.generationStrategy = undefined;
-                                upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " CHANGE `" + nonGeneratedColumn.name + "` " + this.buildCreateColumnSql(generatedColumn, true));
-                                downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " CHANGE `" + generatedColumn.name + "` " + this.buildCreateColumnSql(nonGeneratedColumn, true));
+                                upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " CHANGE `" + nonGeneratedColumn.name + "` " + this.buildCreateColumnSql(generatedColumn, true)));
+                                downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " CHANGE `" + generatedColumn.name + "` " + this.buildCreateColumnSql(nonGeneratedColumn, true)));
                             }
                         }
                         if (newColumn.isUnique !== oldColumn.isUnique) {
@@ -799,8 +863,8 @@ var MysqlQueryRunner = /** @class */ (function (_super) {
                                     name: uniqueIndex.name,
                                     columnNames: uniqueIndex.columnNames
                                 }));
-                                upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD UNIQUE INDEX `" + uniqueIndex.name + "` (`" + newColumn.name + "`)");
-                                downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP INDEX `" + uniqueIndex.name + "`");
+                                upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ADD UNIQUE INDEX `" + uniqueIndex.name + "` (`" + newColumn.name + "`)"));
+                                downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " DROP INDEX `" + uniqueIndex.name + "`"));
                             }
                             else {
                                 uniqueIndex_1 = clonedTable.indices.find(function (index) {
@@ -809,8 +873,8 @@ var MysqlQueryRunner = /** @class */ (function (_super) {
                                 clonedTable.indices.splice(clonedTable.indices.indexOf(uniqueIndex_1), 1);
                                 tableUnique = clonedTable.uniques.find(function (unique) { return unique.name === uniqueIndex_1.name; });
                                 clonedTable.uniques.splice(clonedTable.uniques.indexOf(tableUnique), 1);
-                                upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP INDEX `" + uniqueIndex_1.name + "`");
-                                downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD UNIQUE INDEX `" + uniqueIndex_1.name + "` (`" + newColumn.name + "`)");
+                                upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " DROP INDEX `" + uniqueIndex_1.name + "`"));
+                                downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ADD UNIQUE INDEX `" + uniqueIndex_1.name + "` (`" + newColumn.name + "`)"));
                             }
                         }
                         _b.label = 7;
@@ -870,27 +934,27 @@ var MysqlQueryRunner = /** @class */ (function (_super) {
                                 nonGeneratedColumn = generatedColumn.clone();
                                 nonGeneratedColumn.isGenerated = false;
                                 nonGeneratedColumn.generationStrategy = undefined;
-                                upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " CHANGE `" + generatedColumn.name + "` " + this.buildCreateColumnSql(nonGeneratedColumn, true));
-                                downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " CHANGE `" + nonGeneratedColumn.name + "` " + this.buildCreateColumnSql(generatedColumn, true));
+                                upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " CHANGE `" + generatedColumn.name + "` " + this.buildCreateColumnSql(nonGeneratedColumn, true)));
+                                downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " CHANGE `" + nonGeneratedColumn.name + "` " + this.buildCreateColumnSql(generatedColumn, true)));
                             }
                             columnNames = clonedTable.primaryColumns.map(function (primaryColumn) { return "`" + primaryColumn.name + "`"; }).join(", ");
-                            upQueries.push("ALTER TABLE " + this.escapeTableName(clonedTable) + " DROP PRIMARY KEY");
-                            downQueries.push("ALTER TABLE " + this.escapeTableName(clonedTable) + " ADD PRIMARY KEY (" + columnNames + ")");
+                            upQueries.push(new Query("ALTER TABLE " + this.escapePath(clonedTable) + " DROP PRIMARY KEY"));
+                            downQueries.push(new Query("ALTER TABLE " + this.escapePath(clonedTable) + " ADD PRIMARY KEY (" + columnNames + ")"));
                             tableColumn = clonedTable.findColumnByName(column.name);
                             tableColumn.isPrimary = false;
                             // if primary key have multiple columns, we must recreate it without dropped column
                             if (clonedTable.primaryColumns.length > 0) {
                                 columnNames_1 = clonedTable.primaryColumns.map(function (primaryColumn) { return "`" + primaryColumn.name + "`"; }).join(", ");
-                                upQueries.push("ALTER TABLE " + this.escapeTableName(clonedTable) + " ADD PRIMARY KEY (" + columnNames_1 + ")");
-                                downQueries.push("ALTER TABLE " + this.escapeTableName(clonedTable) + " DROP PRIMARY KEY");
+                                upQueries.push(new Query("ALTER TABLE " + this.escapePath(clonedTable) + " ADD PRIMARY KEY (" + columnNames_1 + ")"));
+                                downQueries.push(new Query("ALTER TABLE " + this.escapePath(clonedTable) + " DROP PRIMARY KEY"));
                             }
                             // if we have generated column, and we dropped AUTO_INCREMENT property before, and this column is not current dropping column, we must bring it back
                             if (generatedColumn && generatedColumn.name !== column.name) {
                                 nonGeneratedColumn = generatedColumn.clone();
                                 nonGeneratedColumn.isGenerated = false;
                                 nonGeneratedColumn.generationStrategy = undefined;
-                                upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " CHANGE `" + nonGeneratedColumn.name + "` " + this.buildCreateColumnSql(generatedColumn, true));
-                                downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " CHANGE `" + generatedColumn.name + "` " + this.buildCreateColumnSql(nonGeneratedColumn, true));
+                                upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " CHANGE `" + nonGeneratedColumn.name + "` " + this.buildCreateColumnSql(generatedColumn, true)));
+                                downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " CHANGE `" + generatedColumn.name + "` " + this.buildCreateColumnSql(nonGeneratedColumn, true)));
                             }
                         }
                         columnIndex = clonedTable.indices.find(function (index) { return index.columnNames.length === 1 && index.columnNames[0] === column.name; });
@@ -908,11 +972,11 @@ var MysqlQueryRunner = /** @class */ (function (_super) {
                             foundIndex = clonedTable.indices.find(function (index) { return index.name === indexName_1; });
                             if (foundIndex)
                                 clonedTable.indices.splice(clonedTable.indices.indexOf(foundIndex), 1);
-                            upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP INDEX `" + indexName_1 + "`");
-                            downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD UNIQUE INDEX `" + indexName_1 + "` (`" + column.name + "`)");
+                            upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " DROP INDEX `" + indexName_1 + "`"));
+                            downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ADD UNIQUE INDEX `" + indexName_1 + "` (`" + column.name + "`)"));
                         }
-                        upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP COLUMN `" + column.name + "`");
-                        downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD " + this.buildCreateColumnSql(column, true));
+                        upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " DROP COLUMN `" + column.name + "`"));
+                        downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ADD " + this.buildCreateColumnSql(column, true)));
                         return [4 /*yield*/, this.executeQueries(upQueries, downQueries)];
                     case 4:
                         _b.sent();
@@ -1000,29 +1064,29 @@ var MysqlQueryRunner = /** @class */ (function (_super) {
                             nonGeneratedColumn = generatedColumn.clone();
                             nonGeneratedColumn.isGenerated = false;
                             nonGeneratedColumn.generationStrategy = undefined;
-                            upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " CHANGE `" + generatedColumn.name + "` " + this.buildCreateColumnSql(nonGeneratedColumn, true));
-                            downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " CHANGE `" + nonGeneratedColumn.name + "` " + this.buildCreateColumnSql(generatedColumn, true));
+                            upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " CHANGE `" + generatedColumn.name + "` " + this.buildCreateColumnSql(nonGeneratedColumn, true)));
+                            downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " CHANGE `" + nonGeneratedColumn.name + "` " + this.buildCreateColumnSql(generatedColumn, true)));
                         }
                         primaryColumns = clonedTable.primaryColumns;
                         if (primaryColumns.length > 0) {
                             columnNames_2 = primaryColumns.map(function (column) { return "`" + column.name + "`"; }).join(", ");
-                            upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP PRIMARY KEY");
-                            downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD PRIMARY KEY (" + columnNames_2 + ")");
+                            upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " DROP PRIMARY KEY"));
+                            downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ADD PRIMARY KEY (" + columnNames_2 + ")"));
                         }
                         // update columns in table.
                         clonedTable.columns
                             .filter(function (column) { return columnNames.indexOf(column.name) !== -1; })
                             .forEach(function (column) { return column.isPrimary = true; });
                         columnNamesString = columnNames.map(function (columnName) { return "`" + columnName + "`"; }).join(", ");
-                        upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD PRIMARY KEY (" + columnNamesString + ")");
-                        downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP PRIMARY KEY");
+                        upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ADD PRIMARY KEY (" + columnNamesString + ")"));
+                        downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " DROP PRIMARY KEY"));
                         newOrExistGeneratedColumn = generatedColumn ? generatedColumn : columns.find(function (column) { return column.isGenerated && column.generationStrategy === "increment"; });
                         if (newOrExistGeneratedColumn) {
                             nonGeneratedColumn = newOrExistGeneratedColumn.clone();
                             nonGeneratedColumn.isGenerated = false;
                             nonGeneratedColumn.generationStrategy = undefined;
-                            upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " CHANGE `" + nonGeneratedColumn.name + "` " + this.buildCreateColumnSql(newOrExistGeneratedColumn, true));
-                            downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " CHANGE `" + newOrExistGeneratedColumn.name + "` " + this.buildCreateColumnSql(nonGeneratedColumn, true));
+                            upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " CHANGE `" + nonGeneratedColumn.name + "` " + this.buildCreateColumnSql(newOrExistGeneratedColumn, true)));
+                            downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " CHANGE `" + newOrExistGeneratedColumn.name + "` " + this.buildCreateColumnSql(nonGeneratedColumn, true)));
                             changedGeneratedColumn = clonedTable.columns.find(function (column) { return column.name === newOrExistGeneratedColumn.name; });
                             changedGeneratedColumn.isGenerated = true;
                             changedGeneratedColumn.generationStrategy = "increment";
@@ -1399,7 +1463,7 @@ var MysqlQueryRunner = /** @class */ (function (_super) {
         return tslib_1.__awaiter(this, void 0, void 0, function () {
             return tslib_1.__generator(this, function (_a) {
                 switch (_a.label) {
-                    case 0: return [4 /*yield*/, this.query("TRUNCATE TABLE " + this.escapeTableName(tableOrName))];
+                    case 0: return [4 /*yield*/, this.query("TRUNCATE TABLE " + this.escapePath(tableOrName))];
                     case 1:
                         _a.sent();
                         return [2 /*return*/];
@@ -1414,7 +1478,7 @@ var MysqlQueryRunner = /** @class */ (function (_super) {
      */
     MysqlQueryRunner.prototype.clearDatabase = function (database) {
         return tslib_1.__awaiter(this, void 0, void 0, function () {
-            var dbName, isDatabaseExist, disableForeignKeysCheckQuery, dropTablesQuery, enableForeignKeysCheckQuery, dropQueries, error_1, rollbackError_1;
+            var dbName, isDatabaseExist, selectViewDropsQuery, dropViewQueries, disableForeignKeysCheckQuery, dropTablesQuery, enableForeignKeysCheckQuery, dropQueries, error_1, rollbackError_1;
             var _this = this;
             return tslib_1.__generator(this, function (_a) {
                 switch (_a.label) {
@@ -1433,40 +1497,47 @@ var MysqlQueryRunner = /** @class */ (function (_super) {
                         _a.sent();
                         _a.label = 5;
                     case 5:
-                        _a.trys.push([5, 11, , 16]);
+                        _a.trys.push([5, 13, , 18]);
+                        selectViewDropsQuery = "SELECT concat('DROP VIEW IF EXISTS `', table_schema, '`.`', table_name, '`') AS `query` FROM `INFORMATION_SCHEMA`.`VIEWS` WHERE `TABLE_SCHEMA` = '" + dbName + "'";
+                        return [4 /*yield*/, this.query(selectViewDropsQuery)];
+                    case 6:
+                        dropViewQueries = _a.sent();
+                        return [4 /*yield*/, Promise.all(dropViewQueries.map(function (q) { return _this.query(q["query"]); }))];
+                    case 7:
+                        _a.sent();
                         disableForeignKeysCheckQuery = "SET FOREIGN_KEY_CHECKS = 0;";
                         dropTablesQuery = "SELECT concat('DROP TABLE IF EXISTS `', table_schema, '`.`', table_name, '`') AS `query` FROM `INFORMATION_SCHEMA`.`TABLES` WHERE `TABLE_SCHEMA` = '" + dbName + "'";
                         enableForeignKeysCheckQuery = "SET FOREIGN_KEY_CHECKS = 1;";
                         return [4 /*yield*/, this.query(disableForeignKeysCheckQuery)];
-                    case 6:
-                        _a.sent();
-                        return [4 /*yield*/, this.query(dropTablesQuery)];
-                    case 7:
-                        dropQueries = _a.sent();
-                        return [4 /*yield*/, Promise.all(dropQueries.map(function (query) { return _this.query(query["query"]); }))];
                     case 8:
                         _a.sent();
-                        return [4 /*yield*/, this.query(enableForeignKeysCheckQuery)];
+                        return [4 /*yield*/, this.query(dropTablesQuery)];
                     case 9:
-                        _a.sent();
-                        return [4 /*yield*/, this.commitTransaction()];
+                        dropQueries = _a.sent();
+                        return [4 /*yield*/, Promise.all(dropQueries.map(function (query) { return _this.query(query["query"]); }))];
                     case 10:
                         _a.sent();
-                        return [3 /*break*/, 16];
+                        return [4 /*yield*/, this.query(enableForeignKeysCheckQuery)];
                     case 11:
-                        error_1 = _a.sent();
-                        _a.label = 12;
-                    case 12:
-                        _a.trys.push([12, 14, , 15]);
-                        return [4 /*yield*/, this.rollbackTransaction()];
-                    case 13:
                         _a.sent();
-                        return [3 /*break*/, 15];
+                        return [4 /*yield*/, this.commitTransaction()];
+                    case 12:
+                        _a.sent();
+                        return [3 /*break*/, 18];
+                    case 13:
+                        error_1 = _a.sent();
+                        _a.label = 14;
                     case 14:
+                        _a.trys.push([14, 16, , 17]);
+                        return [4 /*yield*/, this.rollbackTransaction()];
+                    case 15:
+                        _a.sent();
+                        return [3 /*break*/, 17];
+                    case 16:
                         rollbackError_1 = _a.sent();
-                        return [3 /*break*/, 15];
-                    case 15: throw error_1;
-                    case 16: return [2 /*return*/];
+                        return [3 /*break*/, 17];
+                    case 17: throw error_1;
+                    case 18: return [2 /*return*/];
                 }
             });
         });
@@ -1486,6 +1557,44 @@ var MysqlQueryRunner = /** @class */ (function (_super) {
                     case 1:
                         currentDBQuery = _a.sent();
                         return [2 /*return*/, currentDBQuery[0]["db_name"]];
+                }
+            });
+        });
+    };
+    MysqlQueryRunner.prototype.loadViews = function (viewNames) {
+        return tslib_1.__awaiter(this, void 0, void 0, function () {
+            var hasTable, currentDatabase, viewsCondition, query, dbViews;
+            var _this = this;
+            return tslib_1.__generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0: return [4 /*yield*/, this.hasTable(this.getTypeormMetadataTableName())];
+                    case 1:
+                        hasTable = _a.sent();
+                        if (!hasTable)
+                            return [2 /*return*/, Promise.resolve([])];
+                        return [4 /*yield*/, this.getCurrentDatabase()];
+                    case 2:
+                        currentDatabase = _a.sent();
+                        viewsCondition = viewNames.map(function (tableName) {
+                            var _a = tslib_1.__read(tableName.split("."), 2), database = _a[0], name = _a[1];
+                            if (!name) {
+                                name = database;
+                                database = _this.driver.database || currentDatabase;
+                            }
+                            return "(`t`.`schema` = '" + database + "' AND `t`.`name` = '" + name + "')";
+                        }).join(" OR ");
+                        query = "SELECT `t`.*, `v`.`check_option` FROM " + this.escapePath(this.getTypeormMetadataTableName()) + " `t` " +
+                            ("INNER JOIN `information_schema`.`views` `v` ON `v`.`table_schema` = `t`.`schema` AND `v`.`table_name` = `t`.`name` WHERE `t`.`type` = 'VIEW' " + (viewsCondition ? "AND (" + viewsCondition + ")" : ""));
+                        return [4 /*yield*/, this.query(query)];
+                    case 3:
+                        dbViews = _a.sent();
+                        return [2 /*return*/, dbViews.map(function (dbView) {
+                                var view = new View();
+                                var db = dbView["schema"] === currentDatabase ? undefined : dbView["schema"];
+                                view.name = _this.driver.buildTableName(dbView["name"], undefined, db);
+                                view.expression = dbView["value"];
+                                return view;
+                            })];
                 }
             });
         });
@@ -1598,7 +1707,7 @@ var MysqlQueryRunner = /** @class */ (function (_super) {
                                             tableColumn.default = dbColumn["COLUMN_DEFAULT"] === "CURRENT_TIMESTAMP" ? dbColumn["COLUMN_DEFAULT"] : "'" + dbColumn["COLUMN_DEFAULT"] + "'";
                                         }
                                         if (dbColumn["EXTRA"].indexOf("on update") !== -1) {
-                                            tableColumn.onUpdate = dbColumn["EXTRA"].substring(10);
+                                            tableColumn.onUpdate = dbColumn["EXTRA"].substring(dbColumn["EXTRA"].indexOf("on update") + 10);
                                         }
                                         if (dbColumn["GENERATION_EXPRESSION"]) {
                                             tableColumn.asExpression = dbColumn["GENERATION_EXPRESSION"];
@@ -1630,7 +1739,7 @@ var MysqlQueryRunner = /** @class */ (function (_super) {
                                             if (dbColumn["NUMERIC_SCALE"] !== null && !_this.isDefaultColumnScale(table, tableColumn, dbColumn["NUMERIC_SCALE"]))
                                                 tableColumn.scale = parseInt(dbColumn["NUMERIC_SCALE"]);
                                         }
-                                        if (tableColumn.type === "enum") {
+                                        if (tableColumn.type === "enum" || tableColumn.type === "simple-enum") {
                                             var colType = dbColumn["COLUMN_TYPE"];
                                             var items = colType.substring(colType.indexOf("(") + 1, colType.indexOf(")")).split(",");
                                             tableColumn.enum = items.map(function (item) {
@@ -1638,7 +1747,9 @@ var MysqlQueryRunner = /** @class */ (function (_super) {
                                             });
                                             tableColumn.length = "";
                                         }
-                                        if ((tableColumn.type === "datetime" || tableColumn.type === "time" || tableColumn.type === "timestamp") && dbColumn["DATETIME_PRECISION"]) {
+                                        if ((tableColumn.type === "datetime" || tableColumn.type === "time" || tableColumn.type === "timestamp")
+                                            && dbColumn["DATETIME_PRECISION"] !== null && dbColumn["DATETIME_PRECISION"] !== undefined
+                                            && !_this.isDefaultColumnPrecision(table, tableColumn, parseInt(dbColumn["DATETIME_PRECISION"]))) {
                                             tableColumn.precision = parseInt(dbColumn["DATETIME_PRECISION"]);
                                         }
                                         return tableColumn;
@@ -1664,7 +1775,11 @@ var MysqlQueryRunner = /** @class */ (function (_super) {
                                         return _this.driver.buildTableName(dbIndex["TABLE_NAME"], undefined, dbIndex["TABLE_SCHEMA"]) === tableFullName;
                                     }), function (dbIndex) { return dbIndex["INDEX_NAME"]; });
                                     table.indices = tableIndexConstraints.map(function (constraint) {
-                                        var indices = dbIndices.filter(function (index) { return index["INDEX_NAME"] === constraint["INDEX_NAME"]; });
+                                        var indices = dbIndices.filter(function (index) {
+                                            return index["TABLE_SCHEMA"] === constraint["TABLE_SCHEMA"]
+                                                && index["TABLE_NAME"] === constraint["TABLE_NAME"]
+                                                && index["INDEX_NAME"] === constraint["INDEX_NAME"];
+                                        });
                                         return new TableIndex({
                                             table: table,
                                             name: constraint["INDEX_NAME"],
@@ -1687,7 +1802,7 @@ var MysqlQueryRunner = /** @class */ (function (_super) {
     MysqlQueryRunner.prototype.createTableSql = function (table, createForeignKeys) {
         var _this = this;
         var columnDefinitions = table.columns.map(function (column) { return _this.buildCreateColumnSql(column, true); }).join(", ");
-        var sql = "CREATE TABLE " + this.escapeTableName(table) + " (" + columnDefinitions;
+        var sql = "CREATE TABLE " + this.escapePath(table) + " (" + columnDefinitions;
         // we create unique indexes instead of unique constraints, because MySql does not have unique constraints.
         // if we mark column as Unique, it means that we create UNIQUE INDEX.
         table.columns
@@ -1741,7 +1856,7 @@ var MysqlQueryRunner = /** @class */ (function (_super) {
                 if (!fk.name)
                     fk.name = _this.connection.namingStrategy.foreignKeyName(table.name, fk.columnNames);
                 var referencedColumnNames = fk.referencedColumnNames.map(function (columnName) { return "`" + columnName + "`"; }).join(", ");
-                var constraint = "CONSTRAINT `" + fk.name + "` FOREIGN KEY (" + columnNames + ") REFERENCES " + _this.escapeTableName(fk.referencedTableName) + " (" + referencedColumnNames + ")";
+                var constraint = "CONSTRAINT `" + fk.name + "` FOREIGN KEY (" + columnNames + ") REFERENCES " + _this.escapePath(fk.referencedTableName) + " (" + referencedColumnNames + ")";
                 if (fk.onDelete)
                     constraint += " ON DELETE " + fk.onDelete;
                 if (fk.onUpdate)
@@ -1755,13 +1870,70 @@ var MysqlQueryRunner = /** @class */ (function (_super) {
             sql += ", PRIMARY KEY (" + columnNames + ")";
         }
         sql += ") ENGINE=" + (table.engine || "InnoDB");
-        return sql;
+        return new Query(sql);
     };
     /**
      * Builds drop table sql
      */
     MysqlQueryRunner.prototype.dropTableSql = function (tableOrName) {
-        return "DROP TABLE " + this.escapeTableName(tableOrName);
+        return new Query("DROP TABLE " + this.escapePath(tableOrName));
+    };
+    MysqlQueryRunner.prototype.createViewSql = function (view) {
+        if (typeof view.expression === "string") {
+            return new Query("CREATE VIEW " + this.escapePath(view) + " AS " + view.expression);
+        }
+        else {
+            return new Query("CREATE VIEW " + this.escapePath(view) + " AS " + view.expression(this.connection).getQuery());
+        }
+    };
+    MysqlQueryRunner.prototype.insertViewDefinitionSql = function (view) {
+        return tslib_1.__awaiter(this, void 0, void 0, function () {
+            var currentDatabase, expression, _a, query, parameters;
+            return tslib_1.__generator(this, function (_b) {
+                switch (_b.label) {
+                    case 0: return [4 /*yield*/, this.getCurrentDatabase()];
+                    case 1:
+                        currentDatabase = _b.sent();
+                        expression = typeof view.expression === "string" ? view.expression.trim() : view.expression(this.connection).getQuery();
+                        _a = tslib_1.__read(this.connection.createQueryBuilder()
+                            .insert()
+                            .into(this.getTypeormMetadataTableName())
+                            .values({ type: "VIEW", schema: currentDatabase, name: view.name, value: expression })
+                            .getQueryAndParameters(), 2), query = _a[0], parameters = _a[1];
+                        return [2 /*return*/, new Query(query, parameters)];
+                }
+            });
+        });
+    };
+    /**
+     * Builds drop view sql.
+     */
+    MysqlQueryRunner.prototype.dropViewSql = function (viewOrPath) {
+        return new Query("DROP VIEW " + this.escapePath(viewOrPath));
+    };
+    /**
+     * Builds remove view sql.
+     */
+    MysqlQueryRunner.prototype.deleteViewDefinitionSql = function (viewOrPath) {
+        return tslib_1.__awaiter(this, void 0, void 0, function () {
+            var currentDatabase, viewName, qb, _a, query, parameters;
+            return tslib_1.__generator(this, function (_b) {
+                switch (_b.label) {
+                    case 0: return [4 /*yield*/, this.getCurrentDatabase()];
+                    case 1:
+                        currentDatabase = _b.sent();
+                        viewName = viewOrPath instanceof View ? viewOrPath.name : viewOrPath;
+                        qb = this.connection.createQueryBuilder();
+                        _a = tslib_1.__read(qb.delete()
+                            .from(this.getTypeormMetadataTableName())
+                            .where(qb.escape("type") + " = 'VIEW'")
+                            .andWhere(qb.escape("schema") + " = :schema", { schema: currentDatabase })
+                            .andWhere(qb.escape("name") + " = :name", { name: viewName })
+                            .getQueryAndParameters(), 2), query = _a[0], parameters = _a[1];
+                        return [2 /*return*/, new Query(query, parameters)];
+                }
+            });
+        });
     };
     /**
      * Builds create index sql.
@@ -1775,27 +1947,27 @@ var MysqlQueryRunner = /** @class */ (function (_super) {
             indexType += "SPATIAL ";
         if (index.isFulltext)
             indexType += "FULLTEXT ";
-        return "CREATE " + indexType + "INDEX `" + index.name + "` ON " + this.escapeTableName(table) + " (" + columns + ")";
+        return new Query("CREATE " + indexType + "INDEX `" + index.name + "` ON " + this.escapePath(table) + " (" + columns + ")");
     };
     /**
      * Builds drop index sql.
      */
     MysqlQueryRunner.prototype.dropIndexSql = function (table, indexOrName) {
         var indexName = indexOrName instanceof TableIndex ? indexOrName.name : indexOrName;
-        return "DROP INDEX `" + indexName + "` ON " + this.escapeTableName(table);
+        return new Query("DROP INDEX `" + indexName + "` ON " + this.escapePath(table));
     };
     /**
      * Builds create primary key sql.
      */
     MysqlQueryRunner.prototype.createPrimaryKeySql = function (table, columnNames) {
         var columnNamesString = columnNames.map(function (columnName) { return "`" + columnName + "`"; }).join(", ");
-        return "ALTER TABLE " + this.escapeTableName(table) + " ADD PRIMARY KEY (" + columnNamesString + ")";
+        return new Query("ALTER TABLE " + this.escapePath(table) + " ADD PRIMARY KEY (" + columnNamesString + ")");
     };
     /**
      * Builds drop primary key sql.
      */
     MysqlQueryRunner.prototype.dropPrimaryKeySql = function (table) {
-        return "ALTER TABLE " + this.escapeTableName(table) + " DROP PRIMARY KEY";
+        return new Query("ALTER TABLE " + this.escapePath(table) + " DROP PRIMARY KEY");
     };
     /**
      * Builds create foreign key sql.
@@ -1803,20 +1975,20 @@ var MysqlQueryRunner = /** @class */ (function (_super) {
     MysqlQueryRunner.prototype.createForeignKeySql = function (table, foreignKey) {
         var columnNames = foreignKey.columnNames.map(function (column) { return "`" + column + "`"; }).join(", ");
         var referencedColumnNames = foreignKey.referencedColumnNames.map(function (column) { return "`" + column + "`"; }).join(",");
-        var sql = "ALTER TABLE " + this.escapeTableName(table) + " ADD CONSTRAINT `" + foreignKey.name + "` FOREIGN KEY (" + columnNames + ") " +
-            ("REFERENCES " + this.escapeTableName(foreignKey.referencedTableName) + "(" + referencedColumnNames + ")");
+        var sql = "ALTER TABLE " + this.escapePath(table) + " ADD CONSTRAINT `" + foreignKey.name + "` FOREIGN KEY (" + columnNames + ") " +
+            ("REFERENCES " + this.escapePath(foreignKey.referencedTableName) + "(" + referencedColumnNames + ")");
         if (foreignKey.onDelete)
             sql += " ON DELETE " + foreignKey.onDelete;
         if (foreignKey.onUpdate)
             sql += " ON UPDATE " + foreignKey.onUpdate;
-        return sql;
+        return new Query(sql);
     };
     /**
      * Builds drop foreign key sql.
      */
     MysqlQueryRunner.prototype.dropForeignKeySql = function (table, foreignKeyOrName) {
         var foreignKeyName = foreignKeyOrName instanceof TableForeignKey ? foreignKeyOrName.name : foreignKeyOrName;
-        return "ALTER TABLE " + this.escapeTableName(table) + " DROP FOREIGN KEY `" + foreignKeyName + "`";
+        return new Query("ALTER TABLE " + this.escapePath(table) + " DROP FOREIGN KEY `" + foreignKeyName + "`");
     };
     MysqlQueryRunner.prototype.parseTableName = function (target) {
         var tableName = target instanceof Table ? target.name : target;
@@ -1826,10 +1998,10 @@ var MysqlQueryRunner = /** @class */ (function (_super) {
         };
     };
     /**
-     * Escapes given table name.
+     * Escapes given table or view path.
      */
-    MysqlQueryRunner.prototype.escapeTableName = function (target, disableEscape) {
-        var tableName = target instanceof Table ? target.name : target;
+    MysqlQueryRunner.prototype.escapePath = function (target, disableEscape) {
+        var tableName = target instanceof Table || target instanceof View ? target.name : target;
         return tableName.split(".").map(function (i) { return disableEscape ? i : "`" + i + "`"; }).join(".");
     };
     /**

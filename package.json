@@ -3,13 +3,6 @@
   "version": "2.1.0",
   "description": "SpurtCommerce RESTFUL API",
   "main": "server.js",
-  "scripts": {
-    "start": "nps",
-    "test": "npm start test",
-    "build": "npm start build",
-    "presetup": "npm install",
-    "setup": "npm start config && npm start setup.script"
-  },
   "engines": {
     "node": ">=8.0.0"
   },
@@ -18,14 +11,6 @@
     "TypeScript",
     "express"
   ],
-  "apidoc": {
-    "name": "SpurtCommerce V2.1.0",
-    "version": "2.1.0",
-    "description": "SpurtCommerce RESTFUL API Document",
-    "title": "SpurtCommerce RESTFUL API Document",
-    "url": "http://localhost:9000",
-    "sampleUrl": "http://localhost:9000"
-  },
   "author": "Piccosoft",
   "dependencies": {
     "apidoc": "^0.17.7",
@@ -90,20 +75,6 @@
     "typescript": "3.0.3",
     "uuid": "^3.3.2",
     "winston": "3.1.0"
-  },
-  "jest": {
-    "transform": {
-      ".(ts|tsx)": "<rootDir>/test/preprocessor.js"
-    },
-    "testRegex": "(/__tests__/.*|\\.(test|spec))\\.(ts|tsx|js)$",
-    "moduleFileExtensions": [
-      "ts",
-      "tsx",
-      "js",
-      "json"
-    ],
-    "testEnvironment": "node",
-    "setupTestFrameworkScriptFile": "./test/unit/lib/setup.ts"
   },
   "license": "MIT",
   "devDependencies": {

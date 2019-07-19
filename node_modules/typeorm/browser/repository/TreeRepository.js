@@ -236,9 +236,11 @@ var TreeRepository = /** @class */ (function (_super) {
             var joinColumn = _this.metadata.treeParentRelation.joinColumns[0];
             // fixes issue #2518, default to databaseName property when givenDatabaseName is not set
             var joinColumnName = joinColumn.givenDatabaseName || joinColumn.databaseName;
+            var id = rawResult[alias + "_" + _this.metadata.primaryColumns[0].databaseName];
+            var parentId = rawResult[alias + "_" + joinColumnName];
             return {
-                id: rawResult[alias + "_" + _this.metadata.primaryColumns[0].databaseName],
-                parentId: rawResult[alias + "_" + joinColumnName]
+                id: _this.manager.connection.driver.prepareHydratedValue(id, _this.metadata.primaryColumns[0]),
+                parentId: _this.manager.connection.driver.prepareHydratedValue(parentId, joinColumn),
             };
         });
     };

@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = require("tslib");
+var CockroachDriver_1 = require("../driver/cockroachdb/CockroachDriver");
 var Table_1 = require("./table/Table");
 var TableColumn_1 = require("./table/TableColumn");
 var TableForeignKey_1 = require("./table/TableForeignKey");
@@ -12,6 +13,7 @@ var MysqlDriver_1 = require("../driver/mysql/MysqlDriver");
 var TableUnique_1 = require("./table/TableUnique");
 var TableCheck_1 = require("./table/TableCheck");
 var TableExclusion_1 = require("./table/TableExclusion");
+var View_1 = require("./view/View");
 /**
  * Creates complete tables schemas in the database based on the entity metadatas.
  *
@@ -46,46 +48,60 @@ var RdbmsSchemaBuilder = /** @class */ (function () {
                 switch (_a.label) {
                     case 0:
                         this.queryRunner = this.connection.createQueryRunner("master");
+                        if (!!(this.connection.driver instanceof CockroachDriver_1.CockroachDriver)) return [3 /*break*/, 2];
                         return [4 /*yield*/, this.queryRunner.startTransaction()];
                     case 1:
                         _a.sent();
                         _a.label = 2;
                     case 2:
-                        _a.trys.push([2, 8, 13, 15]);
+                        _a.trys.push([2, 12, 18, 20]);
                         tablePaths = this.entityToSyncMetadatas.map(function (metadata) { return metadata.tablePath; });
-                        return [4 /*yield*/, this.queryRunner.getTables(tablePaths)];
+                        if (!(this.viewEntityToSyncMetadatas.length > 0)) return [3 /*break*/, 4];
+                        return [4 /*yield*/, this.createTypeormMetadataTable()];
                     case 3:
                         _a.sent();
-                        return [4 /*yield*/, this.executeSchemaSyncOperationsInProperOrder()];
-                    case 4:
-                        _a.sent();
-                        if (!this.connection.queryResultCache) return [3 /*break*/, 6];
-                        return [4 /*yield*/, this.connection.queryResultCache.synchronize(this.queryRunner)];
+                        _a.label = 4;
+                    case 4: return [4 /*yield*/, this.queryRunner.getTables(tablePaths)];
                     case 5:
                         _a.sent();
-                        _a.label = 6;
-                    case 6: return [4 /*yield*/, this.queryRunner.commitTransaction()];
+                        return [4 /*yield*/, this.queryRunner.getViews([])];
+                    case 6:
+                        _a.sent();
+                        return [4 /*yield*/, this.executeSchemaSyncOperationsInProperOrder()];
                     case 7:
                         _a.sent();
-                        return [3 /*break*/, 15];
+                        if (!this.connection.queryResultCache) return [3 /*break*/, 9];
+                        return [4 /*yield*/, this.connection.queryResultCache.synchronize(this.queryRunner)];
                     case 8:
-                        error_1 = _a.sent();
+                        _a.sent();
                         _a.label = 9;
                     case 9:
-                        _a.trys.push([9, 11, , 12]);
-                        return [4 /*yield*/, this.queryRunner.rollbackTransaction()];
+                        if (!!(this.connection.driver instanceof CockroachDriver_1.CockroachDriver)) return [3 /*break*/, 11];
+                        return [4 /*yield*/, this.queryRunner.commitTransaction()];
                     case 10:
                         _a.sent();
-                        return [3 /*break*/, 12];
-                    case 11:
-                        rollbackError_1 = _a.sent();
-                        return [3 /*break*/, 12];
-                    case 12: throw error_1;
-                    case 13: return [4 /*yield*/, this.queryRunner.release()];
+                        _a.label = 11;
+                    case 11: return [3 /*break*/, 20];
+                    case 12:
+                        error_1 = _a.sent();
+                        _a.label = 13;
+                    case 13:
+                        _a.trys.push([13, 16, , 17]);
+                        if (!!(this.connection.driver instanceof CockroachDriver_1.CockroachDriver)) return [3 /*break*/, 15];
+                        return [4 /*yield*/, this.queryRunner.rollbackTransaction()];
                     case 14:
                         _a.sent();
+                        _a.label = 15;
+                    case 15: return [3 /*break*/, 17];
+                    case 16:
+                        rollbackError_1 = _a.sent();
+                        return [3 /*break*/, 17];
+                    case 17: throw error_1;
+                    case 18: return [4 /*yield*/, this.queryRunner.release()];
+                    case 19:
+                        _a.sent();
                         return [7 /*endfinally*/];
-                    case 15: return [2 /*return*/];
+                    case 20: return [2 /*return*/];
                 }
             });
         });
@@ -102,31 +118,34 @@ var RdbmsSchemaBuilder = /** @class */ (function () {
                         this.queryRunner = this.connection.createQueryRunner("master");
                         _a.label = 1;
                     case 1:
-                        _a.trys.push([1, , 6, 8]);
+                        _a.trys.push([1, , 7, 9]);
                         tablePaths = this.entityToSyncMetadatas.map(function (metadata) { return metadata.tablePath; });
                         return [4 /*yield*/, this.queryRunner.getTables(tablePaths)];
                     case 2:
                         _a.sent();
-                        this.queryRunner.enableSqlMemory();
-                        return [4 /*yield*/, this.executeSchemaSyncOperationsInProperOrder()];
+                        return [4 /*yield*/, this.queryRunner.getViews([])];
                     case 3:
                         _a.sent();
-                        if (!this.connection.queryResultCache) return [3 /*break*/, 5];
-                        return [4 /*yield*/, this.connection.queryResultCache.synchronize(this.queryRunner)];
+                        this.queryRunner.enableSqlMemory();
+                        return [4 /*yield*/, this.executeSchemaSyncOperationsInProperOrder()];
                     case 4:
                         _a.sent();
-                        _a.label = 5;
-                    case 5: return [2 /*return*/, this.queryRunner.getMemorySql()];
-                    case 6:
+                        if (!this.connection.queryResultCache) return [3 /*break*/, 6];
+                        return [4 /*yield*/, this.connection.queryResultCache.synchronize(this.queryRunner)];
+                    case 5:
+                        _a.sent();
+                        _a.label = 6;
+                    case 6: return [2 /*return*/, this.queryRunner.getMemorySql()];
+                    case 7:
                         // its important to disable this mode despite the fact we are release query builder
                         // because there exist drivers which reuse same query runner. Also its important to disable
                         // sql memory after call of getMemorySql() method because last one flushes sql memory.
                         this.queryRunner.disableSqlMemory();
                         return [4 /*yield*/, this.queryRunner.release()];
-                    case 7:
+                    case 8:
                         _a.sent();
                         return [7 /*endfinally*/];
-                    case 8: return [2 /*return*/];
+                    case 9: return [2 /*return*/];
                 }
             });
         });
@@ -139,7 +158,17 @@ var RdbmsSchemaBuilder = /** @class */ (function () {
          * Returns only entities that should be synced in the database.
          */
         get: function () {
-            return this.connection.entityMetadatas.filter(function (metadata) { return metadata.synchronize && metadata.tableType !== "entity-child"; });
+            return this.connection.entityMetadatas.filter(function (metadata) { return metadata.synchronize && metadata.tableType !== "entity-child" && metadata.tableType !== "view"; });
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(RdbmsSchemaBuilder.prototype, "viewEntityToSyncMetadatas", {
+        /**
+         * Returns only entities that should be synced in the database.
+         */
+        get: function () {
+            return this.connection.entityMetadatas.filter(function (metadata) { return metadata.tableType === "view"; });
         },
         enumerable: true,
         configurable: true
@@ -152,55 +181,61 @@ var RdbmsSchemaBuilder = /** @class */ (function () {
         return tslib_1.__awaiter(this, void 0, void 0, function () {
             return tslib_1.__generator(this, function (_a) {
                 switch (_a.label) {
-                    case 0: return [4 /*yield*/, this.dropOldForeignKeys()];
+                    case 0: return [4 /*yield*/, this.dropOldViews()];
                     case 1:
                         _a.sent();
-                        return [4 /*yield*/, this.dropOldIndices()];
+                        return [4 /*yield*/, this.dropOldForeignKeys()];
                     case 2:
                         _a.sent();
-                        return [4 /*yield*/, this.dropOldChecks()];
+                        return [4 /*yield*/, this.dropOldIndices()];
                     case 3:
                         _a.sent();
-                        return [4 /*yield*/, this.dropOldExclusions()];
+                        return [4 /*yield*/, this.dropOldChecks()];
                     case 4:
                         _a.sent();
-                        return [4 /*yield*/, this.dropCompositeUniqueConstraints()];
+                        return [4 /*yield*/, this.dropOldExclusions()];
                     case 5:
+                        _a.sent();
+                        return [4 /*yield*/, this.dropCompositeUniqueConstraints()];
+                    case 6:
                         _a.sent();
                         // await this.renameTables();
                         return [4 /*yield*/, this.renameColumns()];
-                    case 6:
+                    case 7:
                         // await this.renameTables();
                         _a.sent();
                         return [4 /*yield*/, this.createNewTables()];
-                    case 7:
-                        _a.sent();
-                        return [4 /*yield*/, this.dropRemovedColumns()];
                     case 8:
                         _a.sent();
-                        return [4 /*yield*/, this.addNewColumns()];
+                        return [4 /*yield*/, this.dropRemovedColumns()];
                     case 9:
                         _a.sent();
-                        return [4 /*yield*/, this.updatePrimaryKeys()];
+                        return [4 /*yield*/, this.addNewColumns()];
                     case 10:
                         _a.sent();
-                        return [4 /*yield*/, this.updateExistColumns()];
+                        return [4 /*yield*/, this.updatePrimaryKeys()];
                     case 11:
                         _a.sent();
-                        return [4 /*yield*/, this.createNewIndices()];
+                        return [4 /*yield*/, this.updateExistColumns()];
                     case 12:
                         _a.sent();
-                        return [4 /*yield*/, this.createNewChecks()];
+                        return [4 /*yield*/, this.createNewIndices()];
                     case 13:
                         _a.sent();
-                        return [4 /*yield*/, this.createNewExclusions()];
+                        return [4 /*yield*/, this.createNewChecks()];
                     case 14:
                         _a.sent();
-                        return [4 /*yield*/, this.createCompositeUniqueConstraints()];
+                        return [4 /*yield*/, this.createNewExclusions()];
                     case 15:
                         _a.sent();
-                        return [4 /*yield*/, this.createForeignKeys()];
+                        return [4 /*yield*/, this.createCompositeUniqueConstraints()];
                     case 16:
+                        _a.sent();
+                        return [4 /*yield*/, this.createForeignKeys()];
+                    case 17:
+                        _a.sent();
+                        return [4 /*yield*/, this.createViews()];
+                    case 18:
                         _a.sent();
                         return [2 /*return*/];
                 }
@@ -226,8 +261,8 @@ var RdbmsSchemaBuilder = /** @class */ (function () {
                                         tableForeignKeysToDrop = table.foreignKeys.filter(function (tableForeignKey) {
                                             var metadataFK = metadata.foreignKeys.find(function (metadataForeignKey) { return metadataForeignKey.name === tableForeignKey.name; });
                                             return !metadataFK
-                                                || metadataFK.onDelete && metadataFK.onDelete !== tableForeignKey.onDelete
-                                                || metadataFK.onUpdate && metadataFK.onUpdate !== tableForeignKey.onUpdate;
+                                                || (metadataFK.onDelete && metadataFK.onDelete !== tableForeignKey.onDelete)
+                                                || (metadataFK.onUpdate && metadataFK.onUpdate !== tableForeignKey.onUpdate);
                                         });
                                         if (tableForeignKeysToDrop.length === 0)
                                             return [2 /*return*/];
@@ -521,6 +556,83 @@ var RdbmsSchemaBuilder = /** @class */ (function () {
                                     case 1:
                                         _a.sent();
                                         this.queryRunner.loadedTables.push(table);
+                                        return [2 /*return*/];
+                                }
+                            });
+                        }); })];
+                    case 1:
+                        _a.sent();
+                        return [2 /*return*/];
+                }
+            });
+        });
+    };
+    RdbmsSchemaBuilder.prototype.createViews = function () {
+        return tslib_1.__awaiter(this, void 0, void 0, function () {
+            var _this = this;
+            return tslib_1.__generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0: return [4 /*yield*/, PromiseUtils_1.PromiseUtils.runInSequence(this.viewEntityToSyncMetadatas, function (metadata) { return tslib_1.__awaiter(_this, void 0, void 0, function () {
+                            var existView, view;
+                            var _this = this;
+                            return tslib_1.__generator(this, function (_a) {
+                                switch (_a.label) {
+                                    case 0:
+                                        existView = this.queryRunner.loadedViews.find(function (view) {
+                                            var database = metadata.database && metadata.database !== _this.connection.driver.database ? metadata.database : undefined;
+                                            var schema = metadata.schema || _this.connection.driver.options.schema;
+                                            var fullViewName = _this.connection.driver.buildTableName(metadata.tableName, schema, database);
+                                            var viewExpression = typeof view.expression === "string" ? view.expression.trim() : view.expression(_this.connection).getQuery();
+                                            var metadataExpression = typeof metadata.expression === "string" ? metadata.expression.trim() : metadata.expression(_this.connection).getQuery();
+                                            return view.name === fullViewName && viewExpression === metadataExpression;
+                                        });
+                                        if (existView)
+                                            return [2 /*return*/];
+                                        this.connection.logger.logSchemaBuild("creating a new view: " + metadata.tablePath);
+                                        view = View_1.View.create(metadata, this.connection.driver);
+                                        return [4 /*yield*/, this.queryRunner.createView(view)];
+                                    case 1:
+                                        _a.sent();
+                                        this.queryRunner.loadedViews.push(view);
+                                        return [2 /*return*/];
+                                }
+                            });
+                        }); })];
+                    case 1:
+                        _a.sent();
+                        return [2 /*return*/];
+                }
+            });
+        });
+    };
+    RdbmsSchemaBuilder.prototype.dropOldViews = function () {
+        return tslib_1.__awaiter(this, void 0, void 0, function () {
+            var _this = this;
+            return tslib_1.__generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0: return [4 /*yield*/, PromiseUtils_1.PromiseUtils.runInSequence(this.queryRunner.loadedViews, function (view) { return tslib_1.__awaiter(_this, void 0, void 0, function () {
+                            var existViewMetadata;
+                            var _this = this;
+                            return tslib_1.__generator(this, function (_a) {
+                                switch (_a.label) {
+                                    case 0:
+                                        existViewMetadata = this.viewEntityToSyncMetadatas.find(function (metadata) {
+                                            var database = metadata.database && metadata.database !== _this.connection.driver.database ? metadata.database : undefined;
+                                            var schema = metadata.schema || _this.connection.driver.options.schema;
+                                            var fullViewName = _this.connection.driver.buildTableName(metadata.tableName, schema, database);
+                                            var viewExpression = typeof view.expression === "string" ? view.expression.trim() : view.expression(_this.connection).getQuery();
+                                            var metadataExpression = typeof metadata.expression === "string" ? metadata.expression.trim() : metadata.expression(_this.connection).getQuery();
+                                            return view.name === fullViewName && viewExpression === metadataExpression;
+                                        });
+                                        if (existViewMetadata)
+                                            return [2 /*return*/];
+                                        this.connection.logger.logSchemaBuild("dropping an old view: " + view.name);
+                                        // drop an old view
+                                        return [4 /*yield*/, this.queryRunner.dropView(view)];
+                                    case 1:
+                                        // drop an old view
+                                        _a.sent();
+                                        this.queryRunner.loadedViews.splice(this.queryRunner.loadedViews.indexOf(view), 1);
                                         return [2 /*return*/];
                                 }
                             });
@@ -998,6 +1110,59 @@ var RdbmsSchemaBuilder = /** @class */ (function () {
     RdbmsSchemaBuilder.prototype.metadataColumnsToTableColumnOptions = function (columns) {
         var _this = this;
         return columns.map(function (columnMetadata) { return TableUtils_1.TableUtils.createTableColumnOptions(columnMetadata, _this.connection.driver); });
+    };
+    /**
+     * Creates typeorm service table for storing user defined Views.
+     */
+    RdbmsSchemaBuilder.prototype.createTypeormMetadataTable = function () {
+        return tslib_1.__awaiter(this, void 0, void 0, function () {
+            var options, typeormMetadataTable;
+            return tslib_1.__generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0:
+                        options = this.connection.driver.options;
+                        typeormMetadataTable = this.connection.driver.buildTableName("typeorm_metadata", options.schema, options.database);
+                        return [4 /*yield*/, this.queryRunner.createTable(new Table_1.Table({
+                                name: typeormMetadataTable,
+                                columns: [
+                                    {
+                                        name: "type",
+                                        type: this.connection.driver.normalizeType({ type: this.connection.driver.mappedDataTypes.metadataType }),
+                                        isNullable: false
+                                    },
+                                    {
+                                        name: "database",
+                                        type: this.connection.driver.normalizeType({ type: this.connection.driver.mappedDataTypes.metadataDatabase }),
+                                        isNullable: true
+                                    },
+                                    {
+                                        name: "schema",
+                                        type: this.connection.driver.normalizeType({ type: this.connection.driver.mappedDataTypes.metadataSchema }),
+                                        isNullable: true
+                                    },
+                                    {
+                                        name: "table",
+                                        type: this.connection.driver.normalizeType({ type: this.connection.driver.mappedDataTypes.metadataTable }),
+                                        isNullable: true
+                                    },
+                                    {
+                                        name: "name",
+                                        type: this.connection.driver.normalizeType({ type: this.connection.driver.mappedDataTypes.metadataName }),
+                                        isNullable: true
+                                    },
+                                    {
+                                        name: "value",
+                                        type: this.connection.driver.normalizeType({ type: this.connection.driver.mappedDataTypes.metadataValue }),
+                                        isNullable: true
+                                    },
+                                ]
+                            }), true)];
+                    case 1:
+                        _a.sent();
+                        return [2 /*return*/];
+                }
+            });
+        });
     };
     return RdbmsSchemaBuilder;
 }());

@@ -1,4 +1,6 @@
+import { Query } from "../driver/Query";
 import { SqlInMemory } from "../driver/SqlInMemory";
+import { View } from "../schema-builder/view/View";
 import { Connection } from "../connection/Connection";
 import { Table } from "../schema-builder/table/Table";
 import { EntityManager } from "../entity-manager/EntityManager";
@@ -32,6 +34,10 @@ export declare abstract class BaseQueryRunner {
      */
     loadedTables: Table[];
     /**
+     * All synchronized views in the database.
+     */
+    loadedViews: View[];
+    /**
      * Broadcaster used on this query runner to broadcast entity events.
      */
     broadcaster: Broadcaster;
@@ -58,6 +64,7 @@ export declare abstract class BaseQueryRunner {
      */
     abstract query(query: string, parameters?: any[]): Promise<any>;
     protected abstract loadTables(tablePaths: string[]): Promise<Table[]>;
+    protected abstract loadViews(tablePaths: string[]): Promise<View[]>;
     /**
      * Loads given table's data from the database.
      */
@@ -66,6 +73,14 @@ export declare abstract class BaseQueryRunner {
      * Loads all tables (with given names) from the database.
      */
     getTables(tableNames: string[]): Promise<Table[]>;
+    /**
+     * Loads given view's data from the database.
+     */
+    getView(viewPath: string): Promise<View | undefined>;
+    /**
+     * Loads given view's data from the database.
+     */
+    getViews(viewPaths: string[]): Promise<View[]>;
     /**
      * Enables special query runner mode in which sql queries won't be executed,
      * instead they will be memorized into a special variable inside query runner.
@@ -96,6 +111,10 @@ export declare abstract class BaseQueryRunner {
      */
     executeMemoryDownSql(): Promise<void>;
     /**
+     * Gets view from previously loaded views, otherwise loads it from database.
+     */
+    protected getCachedView(viewName: string): Promise<View>;
+    /**
      * Gets table from previously loaded tables, otherwise loads it from database.
      */
     protected getCachedTable(tableName: string): Promise<Table>;
@@ -103,6 +122,7 @@ export declare abstract class BaseQueryRunner {
      * Replaces loaded table with given changed table.
      */
     protected replaceCachedTable(table: Table, changedTable: Table): void;
+    protected getTypeormMetadataTableName(): string;
     /**
      * Checks if at least one of column properties was changed.
      * Does not checks column type, length and autoincrement, because these properties changes separately.
@@ -127,5 +147,5 @@ export declare abstract class BaseQueryRunner {
     /**
      * Executes sql used special for schema build.
      */
-    protected executeQueries(upQueries: string | string[], downQueries: string | string[]): Promise<void>;
+    protected executeQueries(upQueries: Query | Query[], downQueries: Query | Query[]): Promise<void>;
 }

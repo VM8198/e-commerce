@@ -1,3 +1,4 @@
+import { Connection, SelectQueryBuilder } from "..";
 import { EntitySchemaIndexOptions } from "./EntitySchemaIndexOptions";
 import { EntitySchemaColumnOptions } from "./EntitySchemaColumnOptions";
 import { EntitySchemaRelationOptions } from "./EntitySchemaRelationOptions";
@@ -76,4 +77,8 @@ export declare class EntitySchemaOptions<T> {
      * By default schema synchronization is enabled for all entities.
      */
     synchronize?: boolean;
+    /**
+     * View expression.
+     */
+    expression?: string | ((connection: Connection) => SelectQueryBuilder<any>);
 }

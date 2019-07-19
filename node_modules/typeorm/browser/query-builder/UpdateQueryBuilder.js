@@ -1,4 +1,5 @@
 import * as tslib_1 from "tslib";
+import { CockroachDriver } from "../driver/cockroachdb/CockroachDriver";
 import { QueryBuilder } from "./QueryBuilder";
 import { SqlServerDriver } from "../driver/sqlserver/SqlServerDriver";
 import { PostgresDriver } from "../driver/postgres/PostgresDriver";
@@ -315,6 +316,9 @@ var UpdateQueryBuilder = /** @class */ (function (_super) {
                     throw new EntityColumnNotFound(propertyPath);
                 }
                 columns.forEach(function (column) {
+                    if (!column.isUpdate) {
+                        return;
+                    }
                     var paramName = "upd_" + column.databaseName;
                     //
                     var value = column.getEntityValue(valuesSet);
@@ -405,7 +409,7 @@ var UpdateQueryBuilder = /** @class */ (function (_super) {
         var whereExpression = this.createWhereExpression();
         var returningExpression = this.createReturningExpression();
         // generate and return sql update query
-        if (returningExpression && (this.connection.driver instanceof PostgresDriver || this.connection.driver instanceof OracleDriver)) {
+        if (returningExpression && (this.connection.driver instanceof PostgresDriver || this.connection.driver instanceof OracleDriver || this.connection.driver instanceof CockroachDriver)) {
             return "UPDATE " + this.getTableName(this.getMainTableName()) + " SET " + updateColumnAndValues.join(", ") + whereExpression + " RETURNING " + returningExpression;
         }
         else if (returningExpression && this.connection.driver instanceof SqlServerDriver) {

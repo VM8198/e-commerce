@@ -26,7 +26,8 @@ var EntitySchemaTransformer = /** @class */ (function () {
                 schema: options.schema,
                 type: options.type || "regular",
                 orderBy: options.orderBy,
-                synchronize: options.synchronize
+                synchronize: options.synchronize,
+                expression: options.expression
             };
             metadataArgsStorage.tables.push(tableMetadata);
             // add columns metadata args from the schema
@@ -56,7 +57,9 @@ var EntitySchemaTransformer = /** @class */ (function () {
                         width: column.width,
                         nullable: column.nullable,
                         readonly: column.readonly,
+                        update: column.update,
                         select: column.select,
+                        insert: column.insert,
                         primary: column.primary,
                         unique: column.unique,
                         comment: column.comment,
@@ -73,7 +76,9 @@ var EntitySchemaTransformer = /** @class */ (function () {
                         generatedType: column.generatedType,
                         hstoreType: column.hstoreType,
                         array: column.array,
-                        transformer: column.transformer
+                        transformer: column.transformer,
+                        spatialFeatureType: column.spatialFeatureType,
+                        srid: column.srid
                     }
                 };
                 metadataArgsStorage.columns.push(columnAgrs);
@@ -85,6 +90,8 @@ var EntitySchemaTransformer = /** @class */ (function () {
                     };
                     metadataArgsStorage.generations.push(generationArgs);
                 }
+                if (column.unique)
+                    metadataArgsStorage.uniques.push({ target: options.target || options.name, columns: [columnName] });
             });
             // add relation metadata args from the schema
             if (options.relations) {
@@ -105,6 +112,7 @@ var EntitySchemaTransformer = /** @class */ (function () {
                             nullable: relationSchema.nullable,
                             onDelete: relationSchema.onDelete,
                             onUpdate: relationSchema.onUpdate,
+                            deferrable: relationSchema.deferrable,
                             primary: relationSchema.primary,
                             persistence: relationSchema.persistence
                         }

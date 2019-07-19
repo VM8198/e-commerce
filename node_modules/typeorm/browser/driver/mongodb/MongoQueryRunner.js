@@ -415,6 +415,12 @@ var MongoQueryRunner = /** @class */ (function () {
         });
     };
     /**
+     * Watching new changes as stream.
+     */
+    MongoQueryRunner.prototype.watch = function (collectionName, pipeline, options) {
+        return this.getCollection(collectionName).watch(pipeline, options);
+    };
+    /**
      * Update multiple documents on MongoDB.
      */
     MongoQueryRunner.prototype.updateMany = function (collectionName, query, update, options) {
@@ -520,7 +526,7 @@ var MongoQueryRunner = /** @class */ (function () {
      * Returns raw data stream.
      */
     MongoQueryRunner.prototype.stream = function (query, parameters, onEnd, onError) {
-        throw new Error("Stream is not supported by MongoDB driver.");
+        throw new Error("Stream is not supported by MongoDB driver. Use watch instead.");
     };
     /**
      * Insert a new row with given values into the given table.
@@ -590,6 +596,26 @@ var MongoQueryRunner = /** @class */ (function () {
      * Loads all tables (with given names) from the database and creates a Table from them.
      */
     MongoQueryRunner.prototype.getTables = function (collectionNames) {
+        return tslib_1.__awaiter(this, void 0, void 0, function () {
+            return tslib_1.__generator(this, function (_a) {
+                throw new Error("Schema update queries are not supported by MongoDB driver.");
+            });
+        });
+    };
+    /**
+     * Loads given views's data from the database.
+     */
+    MongoQueryRunner.prototype.getView = function (collectionName) {
+        return tslib_1.__awaiter(this, void 0, void 0, function () {
+            return tslib_1.__generator(this, function (_a) {
+                throw new Error("Schema update queries are not supported by MongoDB driver.");
+            });
+        });
+    };
+    /**
+     * Loads all views (with given names) from the database and creates a Table from them.
+     */
+    MongoQueryRunner.prototype.getViews = function (collectionNames) {
         return tslib_1.__awaiter(this, void 0, void 0, function () {
             return tslib_1.__generator(this, function (_a) {
                 throw new Error("Schema update queries are not supported by MongoDB driver.");
@@ -690,6 +716,26 @@ var MongoQueryRunner = /** @class */ (function () {
      * Drops the table.
      */
     MongoQueryRunner.prototype.dropTable = function (tableName) {
+        return tslib_1.__awaiter(this, void 0, void 0, function () {
+            return tslib_1.__generator(this, function (_a) {
+                throw new Error("Schema update queries are not supported by MongoDB driver.");
+            });
+        });
+    };
+    /**
+     * Creates a new view.
+     */
+    MongoQueryRunner.prototype.createView = function (view) {
+        return tslib_1.__awaiter(this, void 0, void 0, function () {
+            return tslib_1.__generator(this, function (_a) {
+                throw new Error("Schema update queries are not supported by MongoDB driver.");
+            });
+        });
+    };
+    /**
+     * Drops the view.
+     */
+    MongoQueryRunner.prototype.dropView = function (target) {
         return tslib_1.__awaiter(this, void 0, void 0, function () {
             return tslib_1.__generator(this, function (_a) {
                 throw new Error("Schema update queries are not supported by MongoDB driver.");

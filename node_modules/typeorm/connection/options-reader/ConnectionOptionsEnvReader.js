@@ -45,7 +45,8 @@ var ConnectionOptionsEnvReader = /** @class */ (function () {
                 migrationsDir: PlatformTools_1.PlatformTools.getEnvVariable("TYPEORM_MIGRATIONS_DIR"),
                 subscribersDir: PlatformTools_1.PlatformTools.getEnvVariable("TYPEORM_SUBSCRIBERS_DIR"),
             },
-            cache: this.transformCaching()
+            cache: this.transformCaching(),
+            uuidExtension: PlatformTools_1.PlatformTools.getEnvVariable("TYPEORM_UUID_EXTENSION")
         };
     };
     // -------------------------------------------------------------------------

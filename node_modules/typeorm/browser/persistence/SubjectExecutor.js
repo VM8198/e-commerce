@@ -73,6 +73,9 @@ var SubjectExecutor = /** @class */ (function () {
                         // recompute only in the case if any listener or subscriber was really executed
                         if (broadcasterResult && broadcasterResult.count > 0) {
                             // console.time(".recompute");
+                            this.insertSubjects.forEach(function (subject) { return subject.recompute(); });
+                            this.updateSubjects.forEach(function (subject) { return subject.recompute(); });
+                            this.removeSubjects.forEach(function (subject) { return subject.recompute(); });
                             this.recompute();
                             // console.timeEnd(".recompute");
                         }

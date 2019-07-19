@@ -114,11 +114,13 @@ var MongoEntityManager = /** @class */ (function (_super) {
                         metadata = this.connection.getMetadata(entityClassOrName);
                         query = this.convertFindManyOptionsOrConditionsToMongodbQuery(optionsOrConditions) || {};
                         objectIdInstance = PlatformTools.load("mongodb").ObjectID;
-                        query["_id"] = { $in: ids.map(function (id) {
+                        query["_id"] = {
+                            $in: ids.map(function (id) {
                                 if (id instanceof objectIdInstance)
                                     return id;
                                 return id[metadata.objectIdColumn.propertyName];
-                            }) };
+                            })
+                        };
                         return [4 /*yield*/, this.createEntityCursor(entityClassOrName, query)];
                     case 1:
                         cursor = _a.sent();
@@ -178,7 +180,7 @@ var MongoEntityManager = /** @class */ (function (_super) {
      * Does not check if entity exist in the database, so query will fail if duplicate entity is being inserted.
      * You can execute bulk inserts using this method.
      */
-    MongoEntityManager.prototype.insert = function (target, entity, options) {
+    MongoEntityManager.prototype.insert = function (target, entity) {
         return tslib_1.__awaiter(this, void 0, void 0, function () {
             var result, _a, _b;
             var _this = this;
@@ -216,7 +218,7 @@ var MongoEntityManager = /** @class */ (function (_super) {
      * Executes fast and efficient UPDATE query.
      * Does not check if entity exist in the database.
      */
-    MongoEntityManager.prototype.update = function (target, criteria, partialEntity, options) {
+    MongoEntityManager.prototype.update = function (target, criteria, partialEntity) {
         return tslib_1.__awaiter(this, void 0, void 0, function () {
             var metadata;
             var _this = this;
@@ -247,7 +249,7 @@ var MongoEntityManager = /** @class */ (function (_super) {
      * Executes fast and efficient DELETE query.
      * Does not check if entity exist in the database.
      */
-    MongoEntityManager.prototype.delete = function (target, criteria, options) {
+    MongoEntityManager.prototype.delete = function (target, criteria) {
         return tslib_1.__awaiter(this, void 0, void 0, function () {
             var _this = this;
             return tslib_1.__generator(this, function (_a) {
@@ -518,6 +520,10 @@ var MongoEntityManager = /** @class */ (function (_super) {
     MongoEntityManager.prototype.stats = function (entityClassOrName, options) {
         var metadata = this.connection.getMetadata(entityClassOrName);
         return this.queryRunner.stats(metadata.tableName, options);
+    };
+    MongoEntityManager.prototype.watch = function (entityClassOrName, pipeline, options) {
+        var metadata = this.connection.getMetadata(entityClassOrName);
+        return this.queryRunner.watch(metadata.tableName, pipeline, options);
     };
     /**
      * Update multiple documents on MongoDB.

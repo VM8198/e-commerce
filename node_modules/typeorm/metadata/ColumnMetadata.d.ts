@@ -72,13 +72,17 @@ export declare class ColumnMetadata {
      */
     isSelect: boolean;
     /**
-     * Indicates if column is protected from updates or not.
+     * Indicates if column is inserted by default or not.
      */
-    isReadonly: boolean;
+    isInsert: boolean;
+    /**
+     * Indicates if column allows updates or not.
+     */
+    isUpdate: boolean;
     /**
      * Specifies generation strategy if this column will use auto increment.
      */
-    generationStrategy?: "uuid" | "increment";
+    generationStrategy?: "uuid" | "increment" | "rowid";
     /**
      * Column comment.
      * This feature is not supported by all databases.
@@ -113,8 +117,11 @@ export declare class ColumnMetadata {
     unsigned: boolean;
     /**
      * Array of possible enumerated values.
+     *
+     * `postgres` and `mysql` store enum values as strings but we want to keep support
+     * for numeric and heterogeneous based typescript enums, so we need (string|number)[]
      */
-    enum?: any[];
+    enum?: (string | number)[];
     /**
      * Generated column expression. Supports only in MySQL.
      */
@@ -200,7 +207,7 @@ export declare class ColumnMetadata {
      * Specifies a value transformer that is to be used to (un)marshal
      * this column when reading or writing to the database.
      */
-    transformer?: ValueTransformer;
+    transformer?: ValueTransformer | ValueTransformer[];
     /**
      * Column type in the case if this column is in the closure table.
      * Column can be ancestor or descendant in the closure tables.

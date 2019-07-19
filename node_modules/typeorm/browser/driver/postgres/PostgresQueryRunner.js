@@ -1,19 +1,21 @@
 import * as tslib_1 from "tslib";
+import { PromiseUtils } from "../../";
+import { QueryFailedError } from "../../error/QueryFailedError";
+import { QueryRunnerAlreadyReleasedError } from "../../error/QueryRunnerAlreadyReleasedError";
 import { TransactionAlreadyStartedError } from "../../error/TransactionAlreadyStartedError";
 import { TransactionNotStartedError } from "../../error/TransactionNotStartedError";
-import { TableColumn } from "../../schema-builder/table/TableColumn";
-import { Table } from "../../schema-builder/table/Table";
-import { TableIndex } from "../../schema-builder/table/TableIndex";
-import { TableForeignKey } from "../../schema-builder/table/TableForeignKey";
-import { QueryRunnerAlreadyReleasedError } from "../../error/QueryRunnerAlreadyReleasedError";
-import { QueryFailedError } from "../../error/QueryFailedError";
-import { Broadcaster } from "../../subscriber/Broadcaster";
-import { TableUnique } from "../../schema-builder/table/TableUnique";
 import { BaseQueryRunner } from "../../query-runner/BaseQueryRunner";
-import { OrmUtils } from "../../util/OrmUtils";
-import { PromiseUtils } from "../../";
+import { Table } from "../../schema-builder/table/Table";
 import { TableCheck } from "../../schema-builder/table/TableCheck";
+import { TableColumn } from "../../schema-builder/table/TableColumn";
 import { TableExclusion } from "../../schema-builder/table/TableExclusion";
+import { TableForeignKey } from "../../schema-builder/table/TableForeignKey";
+import { TableIndex } from "../../schema-builder/table/TableIndex";
+import { TableUnique } from "../../schema-builder/table/TableUnique";
+import { View } from "../../schema-builder/view/View";
+import { Broadcaster } from "../../subscriber/Broadcaster";
+import { OrmUtils } from "../../util/OrmUtils";
+import { Query } from "../Query";
 /**
  * Runs queries on a single postgres database connection.
  */
@@ -349,7 +351,7 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
                     case 0:
                         up = ifNotExist ? "CREATE SCHEMA IF NOT EXISTS \"" + schema + "\"" : "CREATE SCHEMA \"" + schema + "\"";
                         down = "DROP SCHEMA \"" + schema + "\" CASCADE";
-                        return [4 /*yield*/, this.executeQueries(up, down)];
+                        return [4 /*yield*/, this.executeQueries(new Query(up), new Query(down))];
                     case 1:
                         _a.sent();
                         return [2 /*return*/];
@@ -369,7 +371,7 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
                         schema = schemaPath.indexOf(".") === -1 ? schemaPath : schemaPath.split(".")[0];
                         up = ifExist ? "DROP SCHEMA IF EXISTS \"" + schema + "\" " + (isCascade ? "CASCADE" : "") : "DROP SCHEMA \"" + schema + "\" " + (isCascade ? "CASCADE" : "");
                         down = "CREATE SCHEMA \"" + schema + "\"";
-                        return [4 /*yield*/, this.executeQueries(up, down)];
+                        return [4 /*yield*/, this.executeQueries(new Query(up), new Query(down))];
                     case 1:
                         _a.sent();
                         return [2 /*return*/];
@@ -402,7 +404,7 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
                         downQueries = [];
                         // if table have column with ENUM type, we must create this type in postgres.
                         return [4 /*yield*/, Promise.all(table.columns
-                                .filter(function (column) { return column.type === "enum"; })
+                                .filter(function (column) { return column.type === "enum" || column.type === "simple-enum"; })
                                 .map(function (column) { return tslib_1.__awaiter(_this, void 0, void 0, function () {
                                 var hasEnum;
                                 return tslib_1.__generator(this, function (_a) {
@@ -410,6 +412,7 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
                                         case 0: return [4 /*yield*/, this.hasEnumType(table, column)];
                                         case 1:
                                             hasEnum = _a.sent();
+                                            // TODO: Should also check if values of existing type matches expected ones
                                             if (!hasEnum) {
                                                 upQueries.push(this.createEnumTypeSql(table, column));
                                                 downQueries.push(this.dropEnumTypeSql(table, column));
@@ -490,47 +493,109 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
         });
     };
     /**
+     * Creates a new view.
+     */
+    PostgresQueryRunner.prototype.createView = function (view) {
+        return tslib_1.__awaiter(this, void 0, void 0, function () {
+            var upQueries, downQueries, _a, _b, _c, _d;
+            return tslib_1.__generator(this, function (_e) {
+                switch (_e.label) {
+                    case 0:
+                        upQueries = [];
+                        downQueries = [];
+                        upQueries.push(this.createViewSql(view));
+                        _b = (_a = upQueries).push;
+                        return [4 /*yield*/, this.insertViewDefinitionSql(view)];
+                    case 1:
+                        _b.apply(_a, [_e.sent()]);
+                        downQueries.push(this.dropViewSql(view));
+                        _d = (_c = downQueries).push;
+                        return [4 /*yield*/, this.deleteViewDefinitionSql(view)];
+                    case 2:
+                        _d.apply(_c, [_e.sent()]);
+                        return [4 /*yield*/, this.executeQueries(upQueries, downQueries)];
+                    case 3:
+                        _e.sent();
+                        return [2 /*return*/];
+                }
+            });
+        });
+    };
+    /**
+     * Drops the view.
+     */
+    PostgresQueryRunner.prototype.dropView = function (target) {
+        return tslib_1.__awaiter(this, void 0, void 0, function () {
+            var viewName, view, upQueries, downQueries, _a, _b, _c, _d;
+            return tslib_1.__generator(this, function (_e) {
+                switch (_e.label) {
+                    case 0:
+                        viewName = target instanceof View ? target.name : target;
+                        return [4 /*yield*/, this.getCachedView(viewName)];
+                    case 1:
+                        view = _e.sent();
+                        upQueries = [];
+                        downQueries = [];
+                        _b = (_a = upQueries).push;
+                        return [4 /*yield*/, this.deleteViewDefinitionSql(view)];
+                    case 2:
+                        _b.apply(_a, [_e.sent()]);
+                        upQueries.push(this.dropViewSql(view));
+                        _d = (_c = downQueries).push;
+                        return [4 /*yield*/, this.insertViewDefinitionSql(view)];
+                    case 3:
+                        _d.apply(_c, [_e.sent()]);
+                        downQueries.push(this.createViewSql(view));
+                        return [4 /*yield*/, this.executeQueries(upQueries, downQueries)];
+                    case 4:
+                        _e.sent();
+                        return [2 /*return*/];
+                }
+            });
+        });
+    };
+    /**
      * Renames the given table.
      */
     PostgresQueryRunner.prototype.renameTable = function (oldTableOrName, newTableName) {
         return tslib_1.__awaiter(this, void 0, void 0, function () {
-            var upQueries, downQueries, oldTable, _a, newTable, oldTableName, schemaName, columnNames, oldPkName, newPkName;
+            var e_1, _a, upQueries, downQueries, oldTable, _b, newTable, oldTableName, schemaName, columnNames, oldPkName, newPkName, enumColumns, enumColumns_1, enumColumns_1_1, column, oldEnumType, e_1_1;
             var _this = this;
-            return tslib_1.__generator(this, function (_b) {
-                switch (_b.label) {
+            return tslib_1.__generator(this, function (_c) {
+                switch (_c.label) {
                     case 0:
                         upQueries = [];
                         downQueries = [];
                         if (!(oldTableOrName instanceof Table)) return [3 /*break*/, 1];
-                        _a = oldTableOrName;
+                        _b = oldTableOrName;
                         return [3 /*break*/, 3];
                     case 1: return [4 /*yield*/, this.getCachedTable(oldTableOrName)];
                     case 2:
-                        _a = _b.sent();
-                        _b.label = 3;
+                        _b = _c.sent();
+                        _c.label = 3;
                     case 3:
-                        oldTable = _a;
+                        oldTable = _b;
                         newTable = oldTable.clone();
                         oldTableName = oldTable.name.indexOf(".") === -1 ? oldTable.name : oldTable.name.split(".")[1];
                         schemaName = oldTable.name.indexOf(".") === -1 ? undefined : oldTable.name.split(".")[0];
                         newTable.name = schemaName ? schemaName + "." + newTableName : newTableName;
-                        upQueries.push("ALTER TABLE " + this.escapeTableName(oldTable) + " RENAME TO \"" + newTableName + "\"");
-                        downQueries.push("ALTER TABLE " + this.escapeTableName(newTable) + " RENAME TO \"" + oldTableName + "\"");
+                        upQueries.push(new Query("ALTER TABLE " + this.escapePath(oldTable) + " RENAME TO \"" + newTableName + "\""));
+                        downQueries.push(new Query("ALTER TABLE " + this.escapePath(newTable) + " RENAME TO \"" + oldTableName + "\""));
                         // rename column primary key constraint
                         if (newTable.primaryColumns.length > 0) {
                             columnNames = newTable.primaryColumns.map(function (column) { return column.name; });
                             oldPkName = this.connection.namingStrategy.primaryKeyName(oldTable, columnNames);
                             newPkName = this.connection.namingStrategy.primaryKeyName(newTable, columnNames);
-                            upQueries.push("ALTER TABLE " + this.escapeTableName(newTable) + " RENAME CONSTRAINT \"" + oldPkName + "\" TO \"" + newPkName + "\"");
-                            downQueries.push("ALTER TABLE " + this.escapeTableName(newTable) + " RENAME CONSTRAINT \"" + newPkName + "\" TO \"" + oldPkName + "\"");
+                            upQueries.push(new Query("ALTER TABLE " + this.escapePath(newTable) + " RENAME CONSTRAINT \"" + oldPkName + "\" TO \"" + newPkName + "\""));
+                            downQueries.push(new Query("ALTER TABLE " + this.escapePath(newTable) + " RENAME CONSTRAINT \"" + newPkName + "\" TO \"" + oldPkName + "\""));
                         }
                         // rename unique constraints
                         newTable.uniques.forEach(function (unique) {
                             // build new constraint name
                             var newUniqueName = _this.connection.namingStrategy.uniqueConstraintName(newTable, unique.columnNames);
                             // build queries
-                            upQueries.push("ALTER TABLE " + _this.escapeTableName(newTable) + " RENAME CONSTRAINT \"" + unique.name + "\" TO \"" + newUniqueName + "\"");
-                            downQueries.push("ALTER TABLE " + _this.escapeTableName(newTable) + " RENAME CONSTRAINT \"" + newUniqueName + "\" TO \"" + unique.name + "\"");
+                            upQueries.push(new Query("ALTER TABLE " + _this.escapePath(newTable) + " RENAME CONSTRAINT \"" + unique.name + "\" TO \"" + newUniqueName + "\""));
+                            downQueries.push(new Query("ALTER TABLE " + _this.escapePath(newTable) + " RENAME CONSTRAINT \"" + newUniqueName + "\" TO \"" + unique.name + "\""));
                             // replace constraint name
                             unique.name = newUniqueName;
                         });
@@ -542,8 +607,8 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
                             // build queries
                             var up = schema ? "ALTER INDEX \"" + schema + "\".\"" + index.name + "\" RENAME TO \"" + newIndexName + "\"" : "ALTER INDEX \"" + index.name + "\" RENAME TO \"" + newIndexName + "\"";
                             var down = schema ? "ALTER INDEX \"" + schema + "\".\"" + newIndexName + "\" RENAME TO \"" + index.name + "\"" : "ALTER INDEX \"" + newIndexName + "\" RENAME TO \"" + index.name + "\"";
-                            upQueries.push(up);
-                            downQueries.push(down);
+                            upQueries.push(new Query(up));
+                            downQueries.push(new Query(down));
                             // replace constraint name
                             index.name = newIndexName;
                         });
@@ -552,21 +617,43 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
                             // build new constraint name
                             var newForeignKeyName = _this.connection.namingStrategy.foreignKeyName(newTable, foreignKey.columnNames);
                             // build queries
-                            upQueries.push("ALTER TABLE " + _this.escapeTableName(newTable) + " RENAME CONSTRAINT \"" + foreignKey.name + "\" TO \"" + newForeignKeyName + "\"");
-                            downQueries.push("ALTER TABLE " + _this.escapeTableName(newTable) + " RENAME CONSTRAINT \"" + newForeignKeyName + "\" TO \"" + foreignKey.name + "\"");
+                            upQueries.push(new Query("ALTER TABLE " + _this.escapePath(newTable) + " RENAME CONSTRAINT \"" + foreignKey.name + "\" TO \"" + newForeignKeyName + "\""));
+                            downQueries.push(new Query("ALTER TABLE " + _this.escapePath(newTable) + " RENAME CONSTRAINT \"" + newForeignKeyName + "\" TO \"" + foreignKey.name + "\""));
                             // replace constraint name
                             foreignKey.name = newForeignKeyName;
                         });
-                        // rename ENUM types
-                        newTable.columns
-                            .filter(function (column) { return column.type === "enum"; })
-                            .forEach(function (column) {
-                            upQueries.push("ALTER TYPE " + _this.buildEnumName(oldTable, column) + " RENAME TO " + _this.buildEnumName(newTable, column, false));
-                            downQueries.push("ALTER TYPE " + _this.buildEnumName(newTable, column) + " RENAME TO " + _this.buildEnumName(oldTable, column, false));
-                        });
-                        return [4 /*yield*/, this.executeQueries(upQueries, downQueries)];
+                        enumColumns = newTable.columns.filter(function (column) { return column.type === "enum" || column.type === "simple-enum"; });
+                        _c.label = 4;
                     case 4:
-                        _b.sent();
+                        _c.trys.push([4, 9, 10, 11]);
+                        enumColumns_1 = tslib_1.__values(enumColumns), enumColumns_1_1 = enumColumns_1.next();
+                        _c.label = 5;
+                    case 5:
+                        if (!!enumColumns_1_1.done) return [3 /*break*/, 8];
+                        column = enumColumns_1_1.value;
+                        return [4 /*yield*/, this.getEnumTypeName(oldTable, column)];
+                    case 6:
+                        oldEnumType = _c.sent();
+                        upQueries.push(new Query("ALTER TYPE \"" + oldEnumType.enumTypeSchema + "\".\"" + oldEnumType.enumTypeName + "\" RENAME TO " + this.buildEnumName(newTable, column, false)));
+                        downQueries.push(new Query("ALTER TYPE " + this.buildEnumName(newTable, column) + " RENAME TO \"" + oldEnumType.enumTypeName + "\""));
+                        _c.label = 7;
+                    case 7:
+                        enumColumns_1_1 = enumColumns_1.next();
+                        return [3 /*break*/, 5];
+                    case 8: return [3 /*break*/, 11];
+                    case 9:
+                        e_1_1 = _c.sent();
+                        e_1 = { error: e_1_1 };
+                        return [3 /*break*/, 11];
+                    case 10:
+                        try {
+                            if (enumColumns_1_1 && !enumColumns_1_1.done && (_a = enumColumns_1.return)) _a.call(enumColumns_1);
+                        }
+                        finally { if (e_1) throw e_1.error; }
+                        return [7 /*endfinally*/];
+                    case 11: return [4 /*yield*/, this.executeQueries(upQueries, downQueries)];
+                    case 12:
+                        _c.sent();
                         return [2 /*return*/];
                 }
             });
@@ -593,7 +680,7 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
                         clonedTable = table.clone();
                         upQueries = [];
                         downQueries = [];
-                        if (!(column.type === "enum")) return [3 /*break*/, 5];
+                        if (!(column.type === "enum" || column.type === "simple-enum")) return [3 /*break*/, 5];
                         return [4 /*yield*/, this.hasEnumType(table, column)];
                     case 4:
                         hasEnum = _b.sent();
@@ -603,8 +690,8 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
                         }
                         _b.label = 5;
                     case 5:
-                        upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD " + this.buildCreateColumnSql(table, column));
-                        downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP COLUMN \"" + column.name + "\"");
+                        upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ADD " + this.buildCreateColumnSql(table, column)));
+                        downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " DROP COLUMN \"" + column.name + "\""));
                         // create or update primary key constraint
                         if (column.isPrimary) {
                             primaryColumns = clonedTable.primaryColumns;
@@ -612,14 +699,14 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
                             if (primaryColumns.length > 0) {
                                 pkName_1 = this.connection.namingStrategy.primaryKeyName(clonedTable.name, primaryColumns.map(function (column) { return column.name; }));
                                 columnNames_1 = primaryColumns.map(function (column) { return "\"" + column.name + "\""; }).join(", ");
-                                upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP CONSTRAINT \"" + pkName_1 + "\"");
-                                downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD CONSTRAINT \"" + pkName_1 + "\" PRIMARY KEY (" + columnNames_1 + ")");
+                                upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " DROP CONSTRAINT \"" + pkName_1 + "\""));
+                                downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ADD CONSTRAINT \"" + pkName_1 + "\" PRIMARY KEY (" + columnNames_1 + ")"));
                             }
                             primaryColumns.push(column);
                             pkName = this.connection.namingStrategy.primaryKeyName(clonedTable.name, primaryColumns.map(function (column) { return column.name; }));
                             columnNames = primaryColumns.map(function (column) { return "\"" + column.name + "\""; }).join(", ");
-                            upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD CONSTRAINT \"" + pkName + "\" PRIMARY KEY (" + columnNames + ")");
-                            downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP CONSTRAINT \"" + pkName + "\"");
+                            upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ADD CONSTRAINT \"" + pkName + "\" PRIMARY KEY (" + columnNames + ")"));
+                            downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " DROP CONSTRAINT \"" + pkName + "\""));
                         }
                         columnIndex = clonedTable.indices.find(function (index) { return index.columnNames.length === 1 && index.columnNames[0] === column.name; });
                         if (columnIndex) {
@@ -633,8 +720,8 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
                                 columnNames: [column.name]
                             });
                             clonedTable.uniques.push(uniqueConstraint);
-                            upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD CONSTRAINT \"" + uniqueConstraint.name + "\" UNIQUE (\"" + column.name + "\")");
-                            downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP CONSTRAINT \"" + uniqueConstraint.name + "\"");
+                            upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ADD CONSTRAINT \"" + uniqueConstraint.name + "\" UNIQUE (\"" + column.name + "\")"));
+                            downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " DROP CONSTRAINT \"" + uniqueConstraint.name + "\""));
                         }
                         return [4 /*yield*/, this.executeQueries(upQueries, downQueries)];
                     case 6:
@@ -700,7 +787,7 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
      */
     PostgresQueryRunner.prototype.changeColumn = function (tableOrName, oldTableColumnOrName, newColumn) {
         return tslib_1.__awaiter(this, void 0, void 0, function () {
-            var table, _a, clonedTable, upQueries, downQueries, oldColumn, primaryColumns, columnNames, oldPkName, newPkName, schema, seqName, newSeqName, up, down, oldTableColumn, enumName, enumNameWithoutSchema, arraySuffix, oldEnumName, oldEnumNameWithoutSchema, upType, downType, primaryColumns, pkName, columnNames, column, pkName, columnNames, primaryColumn, column, pkName, columnNames, uniqueConstraint, uniqueConstraint;
+            var table, _a, clonedTable, upQueries, downQueries, oldColumn, oldEnumType, primaryColumns, columnNames, oldPkName, newPkName, schema, seqName, newSeqName, up, down, oldTableColumn, enumName, arraySuffix, oldEnumName, oldEnumNameWithoutSchema, enumTypeBeforeColumnChange, upType, downType, primaryColumns, pkName, columnNames, column, pkName, columnNames, primaryColumn, column, pkName, columnNames, uniqueConstraint, uniqueConstraint;
             var _this = this;
             return tslib_1.__generator(this, function (_b) {
                 switch (_b.label) {
@@ -733,130 +820,139 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
                         _b.sent();
                         // update cloned table
                         clonedTable = table.clone();
-                        return [3 /*break*/, 7];
+                        return [3 /*break*/, 12];
                     case 6:
-                        if (oldColumn.name !== newColumn.name) {
-                            // rename column
-                            upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " RENAME COLUMN \"" + oldColumn.name + "\" TO \"" + newColumn.name + "\"");
-                            downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " RENAME COLUMN \"" + newColumn.name + "\" TO \"" + oldColumn.name + "\"");
-                            // rename ENUM type
-                            if (oldColumn.type === "enum") {
-                                upQueries.push("ALTER TYPE " + this.buildEnumName(table, oldColumn) + " RENAME TO " + this.buildEnumName(table, newColumn, false));
-                                downQueries.push("ALTER TYPE " + this.buildEnumName(table, newColumn) + " RENAME TO " + this.buildEnumName(table, oldColumn, false));
-                            }
-                            // rename column primary key constraint
-                            if (oldColumn.isPrimary === true) {
-                                primaryColumns = clonedTable.primaryColumns;
-                                columnNames = primaryColumns.map(function (column) { return column.name; });
-                                oldPkName = this.connection.namingStrategy.primaryKeyName(clonedTable, columnNames);
-                                // replace old column name with new column name
-                                columnNames.splice(columnNames.indexOf(oldColumn.name), 1);
-                                columnNames.push(newColumn.name);
-                                newPkName = this.connection.namingStrategy.primaryKeyName(clonedTable, columnNames);
-                                upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " RENAME CONSTRAINT \"" + oldPkName + "\" TO \"" + newPkName + "\"");
-                                downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " RENAME CONSTRAINT \"" + newPkName + "\" TO \"" + oldPkName + "\"");
-                            }
-                            // rename column sequence
-                            if (oldColumn.isGenerated === true && newColumn.generationStrategy === "increment") {
-                                schema = this.extractSchema(table);
-                                seqName = this.buildSequenceName(table, oldColumn.name, undefined, true, true);
-                                newSeqName = this.buildSequenceName(table, newColumn.name, undefined, true, true);
-                                up = schema ? "ALTER SEQUENCE \"" + schema + "\".\"" + seqName + "\" RENAME TO \"" + newSeqName + "\"" : "ALTER SEQUENCE \"" + seqName + "\" RENAME TO \"" + newSeqName + "\"";
-                                down = schema ? "ALTER SEQUENCE \"" + schema + "\".\"" + newSeqName + "\" RENAME TO \"" + seqName + "\"" : "ALTER SEQUENCE \"" + newSeqName + "\" RENAME TO \"" + seqName + "\"";
-                                upQueries.push(up);
-                                downQueries.push(down);
-                            }
-                            // rename unique constraints
-                            clonedTable.findColumnUniques(oldColumn).forEach(function (unique) {
-                                // build new constraint name
-                                unique.columnNames.splice(unique.columnNames.indexOf(oldColumn.name), 1);
-                                unique.columnNames.push(newColumn.name);
-                                var newUniqueName = _this.connection.namingStrategy.uniqueConstraintName(clonedTable, unique.columnNames);
-                                // build queries
-                                upQueries.push("ALTER TABLE " + _this.escapeTableName(table) + " RENAME CONSTRAINT \"" + unique.name + "\" TO \"" + newUniqueName + "\"");
-                                downQueries.push("ALTER TABLE " + _this.escapeTableName(table) + " RENAME CONSTRAINT \"" + newUniqueName + "\" TO \"" + unique.name + "\"");
-                                // replace constraint name
-                                unique.name = newUniqueName;
-                            });
-                            // rename index constraints
-                            clonedTable.findColumnIndices(oldColumn).forEach(function (index) {
-                                // build new constraint name
-                                index.columnNames.splice(index.columnNames.indexOf(oldColumn.name), 1);
-                                index.columnNames.push(newColumn.name);
-                                var schema = _this.extractSchema(table);
-                                var newIndexName = _this.connection.namingStrategy.indexName(clonedTable, index.columnNames, index.where);
-                                // build queries
-                                var up = schema ? "ALTER INDEX \"" + schema + "\".\"" + index.name + "\" RENAME TO \"" + newIndexName + "\"" : "ALTER INDEX \"" + index.name + "\" RENAME TO \"" + newIndexName + "\"";
-                                var down = schema ? "ALTER INDEX \"" + schema + "\".\"" + newIndexName + "\" RENAME TO \"" + index.name + "\"" : "ALTER INDEX \"" + newIndexName + "\" RENAME TO \"" + index.name + "\"";
-                                upQueries.push(up);
-                                downQueries.push(down);
-                                // replace constraint name
-                                index.name = newIndexName;
-                            });
-                            // rename foreign key constraints
-                            clonedTable.findColumnForeignKeys(oldColumn).forEach(function (foreignKey) {
-                                // build new constraint name
-                                foreignKey.columnNames.splice(foreignKey.columnNames.indexOf(oldColumn.name), 1);
-                                foreignKey.columnNames.push(newColumn.name);
-                                var newForeignKeyName = _this.connection.namingStrategy.foreignKeyName(clonedTable, foreignKey.columnNames);
-                                // build queries
-                                upQueries.push("ALTER TABLE " + _this.escapeTableName(table) + " RENAME CONSTRAINT \"" + foreignKey.name + "\" TO \"" + newForeignKeyName + "\"");
-                                downQueries.push("ALTER TABLE " + _this.escapeTableName(table) + " RENAME CONSTRAINT \"" + newForeignKeyName + "\" TO \"" + foreignKey.name + "\"");
-                                // replace constraint name
-                                foreignKey.name = newForeignKeyName;
-                            });
-                            oldTableColumn = clonedTable.columns.find(function (column) { return column.name === oldColumn.name; });
-                            clonedTable.columns[clonedTable.columns.indexOf(oldTableColumn)].name = newColumn.name;
-                            oldColumn.name = newColumn.name;
+                        if (!(oldColumn.name !== newColumn.name)) return [3 /*break*/, 9];
+                        // rename column
+                        upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " RENAME COLUMN \"" + oldColumn.name + "\" TO \"" + newColumn.name + "\""));
+                        downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " RENAME COLUMN \"" + newColumn.name + "\" TO \"" + oldColumn.name + "\""));
+                        if (!(oldColumn.type === "enum" || oldColumn.type === "simple-enum")) return [3 /*break*/, 8];
+                        return [4 /*yield*/, this.getEnumTypeName(table, oldColumn)];
+                    case 7:
+                        oldEnumType = _b.sent();
+                        upQueries.push(new Query("ALTER TYPE \"" + oldEnumType.enumTypeSchema + "\".\"" + oldEnumType.enumTypeName + "\" RENAME TO " + this.buildEnumName(table, newColumn, false)));
+                        downQueries.push(new Query("ALTER TYPE " + this.buildEnumName(table, newColumn) + " RENAME TO \"" + oldEnumType.enumTypeName + "\""));
+                        _b.label = 8;
+                    case 8:
+                        // rename column primary key constraint
+                        if (oldColumn.isPrimary === true) {
+                            primaryColumns = clonedTable.primaryColumns;
+                            columnNames = primaryColumns.map(function (column) { return column.name; });
+                            oldPkName = this.connection.namingStrategy.primaryKeyName(clonedTable, columnNames);
+                            // replace old column name with new column name
+                            columnNames.splice(columnNames.indexOf(oldColumn.name), 1);
+                            columnNames.push(newColumn.name);
+                            newPkName = this.connection.namingStrategy.primaryKeyName(clonedTable, columnNames);
+                            upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " RENAME CONSTRAINT \"" + oldPkName + "\" TO \"" + newPkName + "\""));
+                            downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " RENAME CONSTRAINT \"" + newPkName + "\" TO \"" + oldPkName + "\""));
                         }
+                        // rename column sequence
+                        if (oldColumn.isGenerated === true && newColumn.generationStrategy === "increment") {
+                            schema = this.extractSchema(table);
+                            seqName = this.buildSequenceName(table, oldColumn.name, undefined, true, true);
+                            newSeqName = this.buildSequenceName(table, newColumn.name, undefined, true, true);
+                            up = schema ? "ALTER SEQUENCE \"" + schema + "\".\"" + seqName + "\" RENAME TO \"" + newSeqName + "\"" : "ALTER SEQUENCE \"" + seqName + "\" RENAME TO \"" + newSeqName + "\"";
+                            down = schema ? "ALTER SEQUENCE \"" + schema + "\".\"" + newSeqName + "\" RENAME TO \"" + seqName + "\"" : "ALTER SEQUENCE \"" + newSeqName + "\" RENAME TO \"" + seqName + "\"";
+                            upQueries.push(new Query(up));
+                            downQueries.push(new Query(down));
+                        }
+                        // rename unique constraints
+                        clonedTable.findColumnUniques(oldColumn).forEach(function (unique) {
+                            // build new constraint name
+                            unique.columnNames.splice(unique.columnNames.indexOf(oldColumn.name), 1);
+                            unique.columnNames.push(newColumn.name);
+                            var newUniqueName = _this.connection.namingStrategy.uniqueConstraintName(clonedTable, unique.columnNames);
+                            // build queries
+                            upQueries.push(new Query("ALTER TABLE " + _this.escapePath(table) + " RENAME CONSTRAINT \"" + unique.name + "\" TO \"" + newUniqueName + "\""));
+                            downQueries.push(new Query("ALTER TABLE " + _this.escapePath(table) + " RENAME CONSTRAINT \"" + newUniqueName + "\" TO \"" + unique.name + "\""));
+                            // replace constraint name
+                            unique.name = newUniqueName;
+                        });
+                        // rename index constraints
+                        clonedTable.findColumnIndices(oldColumn).forEach(function (index) {
+                            // build new constraint name
+                            index.columnNames.splice(index.columnNames.indexOf(oldColumn.name), 1);
+                            index.columnNames.push(newColumn.name);
+                            var schema = _this.extractSchema(table);
+                            var newIndexName = _this.connection.namingStrategy.indexName(clonedTable, index.columnNames, index.where);
+                            // build queries
+                            var up = schema ? "ALTER INDEX \"" + schema + "\".\"" + index.name + "\" RENAME TO \"" + newIndexName + "\"" : "ALTER INDEX \"" + index.name + "\" RENAME TO \"" + newIndexName + "\"";
+                            var down = schema ? "ALTER INDEX \"" + schema + "\".\"" + newIndexName + "\" RENAME TO \"" + index.name + "\"" : "ALTER INDEX \"" + newIndexName + "\" RENAME TO \"" + index.name + "\"";
+                            upQueries.push(new Query(up));
+                            downQueries.push(new Query(down));
+                            // replace constraint name
+                            index.name = newIndexName;
+                        });
+                        // rename foreign key constraints
+                        clonedTable.findColumnForeignKeys(oldColumn).forEach(function (foreignKey) {
+                            // build new constraint name
+                            foreignKey.columnNames.splice(foreignKey.columnNames.indexOf(oldColumn.name), 1);
+                            foreignKey.columnNames.push(newColumn.name);
+                            var newForeignKeyName = _this.connection.namingStrategy.foreignKeyName(clonedTable, foreignKey.columnNames);
+                            // build queries
+                            upQueries.push(new Query("ALTER TABLE " + _this.escapePath(table) + " RENAME CONSTRAINT \"" + foreignKey.name + "\" TO \"" + newForeignKeyName + "\""));
+                            downQueries.push(new Query("ALTER TABLE " + _this.escapePath(table) + " RENAME CONSTRAINT \"" + newForeignKeyName + "\" TO \"" + foreignKey.name + "\""));
+                            // replace constraint name
+                            foreignKey.name = newForeignKeyName;
+                        });
+                        oldTableColumn = clonedTable.columns.find(function (column) { return column.name === oldColumn.name; });
+                        clonedTable.columns[clonedTable.columns.indexOf(oldTableColumn)].name = newColumn.name;
+                        oldColumn.name = newColumn.name;
+                        _b.label = 9;
+                    case 9:
                         if (newColumn.precision !== oldColumn.precision || newColumn.scale !== oldColumn.scale) {
-                            upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ALTER COLUMN \"" + newColumn.name + "\" TYPE " + this.driver.createFullType(newColumn));
-                            downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ALTER COLUMN \"" + newColumn.name + "\" TYPE " + this.driver.createFullType(oldColumn));
+                            upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ALTER COLUMN \"" + newColumn.name + "\" TYPE " + this.driver.createFullType(newColumn)));
+                            downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ALTER COLUMN \"" + newColumn.name + "\" TYPE " + this.driver.createFullType(oldColumn)));
                         }
-                        if (newColumn.type === "enum" && oldColumn.type === "enum" && !OrmUtils.isArraysEqual(newColumn.enum, oldColumn.enum)) {
-                            enumName = this.buildEnumName(table, newColumn);
-                            enumNameWithoutSchema = this.buildEnumName(table, newColumn, false);
-                            arraySuffix = newColumn.isArray ? "[]" : "";
-                            oldEnumName = this.buildEnumName(table, newColumn, true, false, true);
-                            oldEnumNameWithoutSchema = this.buildEnumName(table, newColumn, false, false, true);
-                            // rename old ENUM
-                            upQueries.push("ALTER TYPE " + enumName + " RENAME TO " + oldEnumNameWithoutSchema);
-                            downQueries.push("ALTER TYPE " + oldEnumName + " RENAME TO " + enumNameWithoutSchema);
-                            // create new ENUM
-                            upQueries.push(this.createEnumTypeSql(table, newColumn));
-                            downQueries.push(this.dropEnumTypeSql(table, oldColumn));
-                            // if column have default value, we must drop it to avoid issues with type casting
-                            if (newColumn.default !== null && newColumn.default !== undefined) {
-                                upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ALTER COLUMN \"" + newColumn.name + "\" DROP DEFAULT");
-                                downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ALTER COLUMN \"" + newColumn.name + "\" SET DEFAULT " + newColumn.default);
-                            }
-                            upType = "" + enumName + arraySuffix + " USING \"" + newColumn.name + "\"::\"text\"::" + enumName + arraySuffix;
-                            downType = "" + oldEnumName + arraySuffix + " USING \"" + newColumn.name + "\"::\"text\"::" + oldEnumName + arraySuffix;
-                            // update column to use new type
-                            upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ALTER COLUMN \"" + newColumn.name + "\" TYPE " + upType);
-                            downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ALTER COLUMN \"" + newColumn.name + "\" TYPE " + downType);
-                            // if column have default value and we dropped it before, we must bring it back
-                            if (newColumn.default !== null && newColumn.default !== undefined) {
-                                upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ALTER COLUMN \"" + newColumn.name + "\" SET DEFAULT " + newColumn.default);
-                                downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ALTER COLUMN \"" + newColumn.name + "\" DROP DEFAULT");
-                            }
-                            // remove old ENUM
-                            upQueries.push(this.dropEnumTypeSql(table, newColumn, oldEnumName));
-                            downQueries.push(this.createEnumTypeSql(table, oldColumn, oldEnumName));
+                        if (!((newColumn.type === "enum" || newColumn.type === "simple-enum")
+                            && (oldColumn.type === "enum" || oldColumn.type === "simple-enum")
+                            && !OrmUtils.isArraysEqual(newColumn.enum, oldColumn.enum))) return [3 /*break*/, 11];
+                        enumName = this.buildEnumName(table, newColumn);
+                        arraySuffix = newColumn.isArray ? "[]" : "";
+                        oldEnumName = this.buildEnumName(table, newColumn, true, false, true);
+                        oldEnumNameWithoutSchema = this.buildEnumName(table, newColumn, false, false, true);
+                        return [4 /*yield*/, this.getEnumTypeName(table, oldColumn)];
+                    case 10:
+                        enumTypeBeforeColumnChange = _b.sent();
+                        // rename old ENUM
+                        upQueries.push(new Query("ALTER TYPE \"" + enumTypeBeforeColumnChange.enumTypeSchema + "\".\"" + enumTypeBeforeColumnChange.enumTypeName + "\" RENAME TO " + oldEnumNameWithoutSchema));
+                        downQueries.push(new Query("ALTER TYPE " + oldEnumName + " RENAME TO  \"" + enumTypeBeforeColumnChange.enumTypeName + "\""));
+                        // create new ENUM
+                        upQueries.push(this.createEnumTypeSql(table, newColumn));
+                        downQueries.push(this.dropEnumTypeSql(table, oldColumn));
+                        // if column have default value, we must drop it to avoid issues with type casting
+                        if (newColumn.default !== null && newColumn.default !== undefined) {
+                            upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ALTER COLUMN \"" + newColumn.name + "\" DROP DEFAULT"));
+                            downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ALTER COLUMN \"" + newColumn.name + "\" SET DEFAULT " + newColumn.default));
                         }
+                        upType = "" + enumName + arraySuffix + " USING \"" + newColumn.name + "\"::\"text\"::" + enumName + arraySuffix;
+                        downType = "" + oldEnumName + arraySuffix + " USING \"" + newColumn.name + "\"::\"text\"::" + oldEnumName + arraySuffix;
+                        // update column to use new type
+                        upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ALTER COLUMN \"" + newColumn.name + "\" TYPE " + upType));
+                        downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ALTER COLUMN \"" + newColumn.name + "\" TYPE " + downType));
+                        // if column have default value and we dropped it before, we must bring it back
+                        if (newColumn.default !== null && newColumn.default !== undefined) {
+                            upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ALTER COLUMN \"" + newColumn.name + "\" SET DEFAULT " + newColumn.default));
+                            downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ALTER COLUMN \"" + newColumn.name + "\" DROP DEFAULT"));
+                        }
+                        // remove old ENUM
+                        upQueries.push(this.dropEnumTypeSql(table, newColumn, oldEnumName));
+                        downQueries.push(this.createEnumTypeSql(table, oldColumn, oldEnumName));
+                        _b.label = 11;
+                    case 11:
                         if (oldColumn.isNullable !== newColumn.isNullable) {
                             if (newColumn.isNullable) {
-                                upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ALTER COLUMN \"" + oldColumn.name + "\" DROP NOT NULL");
-                                downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ALTER COLUMN \"" + oldColumn.name + "\" SET NOT NULL");
+                                upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ALTER COLUMN \"" + oldColumn.name + "\" DROP NOT NULL"));
+                                downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ALTER COLUMN \"" + oldColumn.name + "\" SET NOT NULL"));
                             }
                             else {
-                                upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ALTER COLUMN \"" + oldColumn.name + "\" SET NOT NULL");
-                                downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ALTER COLUMN \"" + oldColumn.name + "\" DROP NOT NULL");
+                                upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ALTER COLUMN \"" + oldColumn.name + "\" SET NOT NULL"));
+                                downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ALTER COLUMN \"" + oldColumn.name + "\" DROP NOT NULL"));
                             }
                         }
                         if (oldColumn.comment !== newColumn.comment) {
-                            upQueries.push("COMMENT ON COLUMN " + this.escapeTableName(table) + ".\"" + oldColumn.name + "\" IS '" + newColumn.comment + "'");
-                            downQueries.push("COMMENT ON COLUMN " + this.escapeTableName(table) + ".\"" + newColumn.name + "\" IS '" + oldColumn.comment + "'");
+                            upQueries.push(new Query("COMMENT ON COLUMN " + this.escapePath(table) + ".\"" + oldColumn.name + "\" IS '" + newColumn.comment + "'"));
+                            downQueries.push(new Query("COMMENT ON COLUMN " + this.escapePath(table) + ".\"" + newColumn.name + "\" IS '" + oldColumn.comment + "'"));
                         }
                         if (newColumn.isPrimary !== oldColumn.isPrimary) {
                             primaryColumns = clonedTable.primaryColumns;
@@ -864,8 +960,8 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
                             if (primaryColumns.length > 0) {
                                 pkName = this.connection.namingStrategy.primaryKeyName(clonedTable.name, primaryColumns.map(function (column) { return column.name; }));
                                 columnNames = primaryColumns.map(function (column) { return "\"" + column.name + "\""; }).join(", ");
-                                upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP CONSTRAINT \"" + pkName + "\"");
-                                downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD CONSTRAINT \"" + pkName + "\" PRIMARY KEY (" + columnNames + ")");
+                                upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " DROP CONSTRAINT \"" + pkName + "\""));
+                                downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ADD CONSTRAINT \"" + pkName + "\" PRIMARY KEY (" + columnNames + ")"));
                             }
                             if (newColumn.isPrimary === true) {
                                 primaryColumns.push(newColumn);
@@ -873,8 +969,8 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
                                 column.isPrimary = true;
                                 pkName = this.connection.namingStrategy.primaryKeyName(clonedTable.name, primaryColumns.map(function (column) { return column.name; }));
                                 columnNames = primaryColumns.map(function (column) { return "\"" + column.name + "\""; }).join(", ");
-                                upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD CONSTRAINT \"" + pkName + "\" PRIMARY KEY (" + columnNames + ")");
-                                downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP CONSTRAINT \"" + pkName + "\"");
+                                upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ADD CONSTRAINT \"" + pkName + "\" PRIMARY KEY (" + columnNames + ")"));
+                                downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " DROP CONSTRAINT \"" + pkName + "\""));
                             }
                             else {
                                 primaryColumn = primaryColumns.find(function (c) { return c.name === newColumn.name; });
@@ -885,8 +981,8 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
                                 if (primaryColumns.length > 0) {
                                     pkName = this.connection.namingStrategy.primaryKeyName(clonedTable.name, primaryColumns.map(function (column) { return column.name; }));
                                     columnNames = primaryColumns.map(function (column) { return "\"" + column.name + "\""; }).join(", ");
-                                    upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD CONSTRAINT \"" + pkName + "\" PRIMARY KEY (" + columnNames + ")");
-                                    downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP CONSTRAINT \"" + pkName + "\"");
+                                    upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ADD CONSTRAINT \"" + pkName + "\" PRIMARY KEY (" + columnNames + ")"));
+                                    downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " DROP CONSTRAINT \"" + pkName + "\""));
                                 }
                             }
                         }
@@ -897,54 +993,54 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
                                     columnNames: [newColumn.name]
                                 });
                                 clonedTable.uniques.push(uniqueConstraint);
-                                upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD CONSTRAINT \"" + uniqueConstraint.name + "\" UNIQUE (\"" + newColumn.name + "\")");
-                                downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP CONSTRAINT \"" + uniqueConstraint.name + "\"");
+                                upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ADD CONSTRAINT \"" + uniqueConstraint.name + "\" UNIQUE (\"" + newColumn.name + "\")"));
+                                downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " DROP CONSTRAINT \"" + uniqueConstraint.name + "\""));
                             }
                             else {
                                 uniqueConstraint = clonedTable.uniques.find(function (unique) {
                                     return unique.columnNames.length === 1 && !!unique.columnNames.find(function (columnName) { return columnName === newColumn.name; });
                                 });
                                 clonedTable.uniques.splice(clonedTable.uniques.indexOf(uniqueConstraint), 1);
-                                upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP CONSTRAINT \"" + uniqueConstraint.name + "\"");
-                                downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD CONSTRAINT \"" + uniqueConstraint.name + "\" UNIQUE (\"" + newColumn.name + "\")");
+                                upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " DROP CONSTRAINT \"" + uniqueConstraint.name + "\""));
+                                downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ADD CONSTRAINT \"" + uniqueConstraint.name + "\" UNIQUE (\"" + newColumn.name + "\")"));
                             }
                         }
                         if (oldColumn.isGenerated !== newColumn.isGenerated && newColumn.generationStrategy !== "uuid") {
                             if (newColumn.isGenerated === true) {
-                                upQueries.push("CREATE SEQUENCE " + this.buildSequenceName(table, newColumn) + " OWNED BY " + this.escapeTableName(table) + ".\"" + newColumn.name + "\"");
-                                downQueries.push("DROP SEQUENCE " + this.buildSequenceName(table, newColumn));
-                                upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ALTER COLUMN \"" + newColumn.name + "\" SET DEFAULT nextval('" + this.buildSequenceName(table, newColumn, undefined, true) + "')");
-                                downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ALTER COLUMN \"" + newColumn.name + "\" DROP DEFAULT");
+                                upQueries.push(new Query("CREATE SEQUENCE " + this.buildSequenceName(table, newColumn) + " OWNED BY " + this.escapePath(table) + ".\"" + newColumn.name + "\""));
+                                downQueries.push(new Query("DROP SEQUENCE " + this.buildSequenceName(table, newColumn)));
+                                upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ALTER COLUMN \"" + newColumn.name + "\" SET DEFAULT nextval('" + this.buildSequenceName(table, newColumn, undefined, true) + "')"));
+                                downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ALTER COLUMN \"" + newColumn.name + "\" DROP DEFAULT"));
                             }
                             else {
-                                upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ALTER COLUMN \"" + newColumn.name + "\" DROP DEFAULT");
-                                downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ALTER COLUMN \"" + newColumn.name + "\" SET DEFAULT nextval('" + this.buildSequenceName(table, newColumn, undefined, true) + "')");
-                                upQueries.push("DROP SEQUENCE " + this.buildSequenceName(table, newColumn));
-                                downQueries.push("CREATE SEQUENCE " + this.buildSequenceName(table, newColumn) + " OWNED BY " + this.escapeTableName(table) + ".\"" + newColumn.name + "\"");
+                                upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ALTER COLUMN \"" + newColumn.name + "\" DROP DEFAULT"));
+                                downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ALTER COLUMN \"" + newColumn.name + "\" SET DEFAULT nextval('" + this.buildSequenceName(table, newColumn, undefined, true) + "')"));
+                                upQueries.push(new Query("DROP SEQUENCE " + this.buildSequenceName(table, newColumn)));
+                                downQueries.push(new Query("CREATE SEQUENCE " + this.buildSequenceName(table, newColumn) + " OWNED BY " + this.escapePath(table) + ".\"" + newColumn.name + "\""));
                             }
                         }
                         if (newColumn.default !== oldColumn.default) {
                             if (newColumn.default !== null && newColumn.default !== undefined) {
-                                upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ALTER COLUMN \"" + newColumn.name + "\" SET DEFAULT " + newColumn.default);
+                                upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ALTER COLUMN \"" + newColumn.name + "\" SET DEFAULT " + newColumn.default));
                                 if (oldColumn.default !== null && oldColumn.default !== undefined) {
-                                    downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ALTER COLUMN \"" + newColumn.name + "\" SET DEFAULT " + oldColumn.default);
+                                    downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ALTER COLUMN \"" + newColumn.name + "\" SET DEFAULT " + oldColumn.default));
                                 }
                                 else {
-                                    downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ALTER COLUMN \"" + newColumn.name + "\" DROP DEFAULT");
+                                    downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ALTER COLUMN \"" + newColumn.name + "\" DROP DEFAULT"));
                                 }
                             }
                             else if (oldColumn.default !== null && oldColumn.default !== undefined) {
-                                upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ALTER COLUMN \"" + newColumn.name + "\" DROP DEFAULT");
-                                downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ALTER COLUMN \"" + newColumn.name + "\" SET DEFAULT " + oldColumn.default);
+                                upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ALTER COLUMN \"" + newColumn.name + "\" DROP DEFAULT"));
+                                downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ALTER COLUMN \"" + newColumn.name + "\" SET DEFAULT " + oldColumn.default));
                             }
                         }
                         if ((newColumn.spatialFeatureType || "").toLowerCase() !== (oldColumn.spatialFeatureType || "").toLowerCase() || newColumn.srid !== oldColumn.srid) {
-                            upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ALTER COLUMN \"" + newColumn.name + "\" TYPE " + this.driver.createFullType(newColumn));
-                            downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ALTER COLUMN \"" + newColumn.name + "\" TYPE " + this.driver.createFullType(oldColumn));
+                            upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ALTER COLUMN \"" + newColumn.name + "\" TYPE " + this.driver.createFullType(newColumn)));
+                            downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ALTER COLUMN \"" + newColumn.name + "\" TYPE " + this.driver.createFullType(oldColumn)));
                         }
-                        _b.label = 7;
-                    case 7: return [4 /*yield*/, this.executeQueries(upQueries, downQueries)];
-                    case 8:
+                        _b.label = 12;
+                    case 12: return [4 /*yield*/, this.executeQueries(upQueries, downQueries)];
+                    case 13:
                         _b.sent();
                         this.replaceCachedTable(table, clonedTable);
                         return [2 /*return*/];
@@ -973,7 +1069,7 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
      */
     PostgresQueryRunner.prototype.dropColumn = function (tableOrName, columnOrName) {
         return tslib_1.__awaiter(this, void 0, void 0, function () {
-            var table, _a, column, clonedTable, upQueries, downQueries, pkName, columnNames, tableColumn, pkName_2, columnNames_2, columnIndex, columnCheck, columnUnique, hasEnum;
+            var table, _a, column, clonedTable, upQueries, downQueries, pkName, columnNames, tableColumn, pkName_2, columnNames_2, columnIndex, columnCheck, columnUnique, hasEnum, enumType, escapedEnumName;
             return tslib_1.__generator(this, function (_b) {
                 switch (_b.label) {
                     case 0:
@@ -996,16 +1092,16 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
                         if (column.isPrimary) {
                             pkName = this.connection.namingStrategy.primaryKeyName(clonedTable.name, clonedTable.primaryColumns.map(function (column) { return column.name; }));
                             columnNames = clonedTable.primaryColumns.map(function (primaryColumn) { return "\"" + primaryColumn.name + "\""; }).join(", ");
-                            upQueries.push("ALTER TABLE " + this.escapeTableName(clonedTable) + " DROP CONSTRAINT \"" + pkName + "\"");
-                            downQueries.push("ALTER TABLE " + this.escapeTableName(clonedTable) + " ADD CONSTRAINT \"" + pkName + "\" PRIMARY KEY (" + columnNames + ")");
+                            upQueries.push(new Query("ALTER TABLE " + this.escapePath(clonedTable) + " DROP CONSTRAINT \"" + pkName + "\""));
+                            downQueries.push(new Query("ALTER TABLE " + this.escapePath(clonedTable) + " ADD CONSTRAINT \"" + pkName + "\" PRIMARY KEY (" + columnNames + ")"));
                             tableColumn = clonedTable.findColumnByName(column.name);
                             tableColumn.isPrimary = false;
                             // if primary key have multiple columns, we must recreate it without dropped column
                             if (clonedTable.primaryColumns.length > 0) {
                                 pkName_2 = this.connection.namingStrategy.primaryKeyName(clonedTable.name, clonedTable.primaryColumns.map(function (column) { return column.name; }));
                                 columnNames_2 = clonedTable.primaryColumns.map(function (primaryColumn) { return "\"" + primaryColumn.name + "\""; }).join(", ");
-                                upQueries.push("ALTER TABLE " + this.escapeTableName(clonedTable) + " ADD CONSTRAINT \"" + pkName_2 + "\" PRIMARY KEY (" + columnNames_2 + ")");
-                                downQueries.push("ALTER TABLE " + this.escapeTableName(clonedTable) + " DROP CONSTRAINT \"" + pkName_2 + "\"");
+                                upQueries.push(new Query("ALTER TABLE " + this.escapePath(clonedTable) + " ADD CONSTRAINT \"" + pkName_2 + "\" PRIMARY KEY (" + columnNames_2 + ")"));
+                                downQueries.push(new Query("ALTER TABLE " + this.escapePath(clonedTable) + " DROP CONSTRAINT \"" + pkName_2 + "\""));
                             }
                         }
                         columnIndex = clonedTable.indices.find(function (index) { return index.columnNames.length === 1 && index.columnNames[0] === column.name; });
@@ -1026,19 +1122,22 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
                             upQueries.push(this.dropUniqueConstraintSql(table, columnUnique));
                             downQueries.push(this.createUniqueConstraintSql(table, columnUnique));
                         }
-                        upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP COLUMN \"" + column.name + "\"");
-                        downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD " + this.buildCreateColumnSql(table, column));
-                        if (!(column.type === "enum")) return [3 /*break*/, 5];
+                        upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " DROP COLUMN \"" + column.name + "\""));
+                        downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ADD " + this.buildCreateColumnSql(table, column)));
+                        if (!(column.type === "enum" || column.type === "simple-enum")) return [3 /*break*/, 6];
                         return [4 /*yield*/, this.hasEnumType(table, column)];
                     case 4:
                         hasEnum = _b.sent();
-                        if (hasEnum) {
-                            upQueries.push(this.dropEnumTypeSql(table, column));
-                            downQueries.push(this.createEnumTypeSql(table, column));
-                        }
-                        _b.label = 5;
-                    case 5: return [4 /*yield*/, this.executeQueries(upQueries, downQueries)];
-                    case 6:
+                        if (!hasEnum) return [3 /*break*/, 6];
+                        return [4 /*yield*/, this.getEnumTypeName(table, column)];
+                    case 5:
+                        enumType = _b.sent();
+                        escapedEnumName = "\"" + enumType.enumTypeSchema + "\".\"" + enumType.enumTypeName + "\"";
+                        upQueries.push(this.dropEnumTypeSql(table, column, escapedEnumName));
+                        downQueries.push(this.createEnumTypeSql(table, column, escapedEnumName));
+                        _b.label = 6;
+                    case 6: return [4 /*yield*/, this.executeQueries(upQueries, downQueries)];
+                    case 7:
                         _b.sent();
                         clonedTable.removeColumn(column);
                         this.replaceCachedTable(table, clonedTable);
@@ -1124,8 +1223,8 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
                         if (primaryColumns.length > 0) {
                             pkName_3 = this.connection.namingStrategy.primaryKeyName(clonedTable.name, primaryColumns.map(function (column) { return column.name; }));
                             columnNamesString_1 = primaryColumns.map(function (column) { return "\"" + column.name + "\""; }).join(", ");
-                            upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP CONSTRAINT \"" + pkName_3 + "\"");
-                            downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD CONSTRAINT \"" + pkName_3 + "\" PRIMARY KEY (" + columnNamesString_1 + ")");
+                            upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " DROP CONSTRAINT \"" + pkName_3 + "\""));
+                            downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ADD CONSTRAINT \"" + pkName_3 + "\" PRIMARY KEY (" + columnNamesString_1 + ")"));
                         }
                         // update columns in table.
                         clonedTable.columns
@@ -1133,8 +1232,8 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
                             .forEach(function (column) { return column.isPrimary = true; });
                         pkName = this.connection.namingStrategy.primaryKeyName(clonedTable.name, columnNames);
                         columnNamesString = columnNames.map(function (columnName) { return "\"" + columnName + "\""; }).join(", ");
-                        upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD CONSTRAINT \"" + pkName + "\" PRIMARY KEY (" + columnNamesString + ")");
-                        downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP CONSTRAINT \"" + pkName + "\"");
+                        upQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " ADD CONSTRAINT \"" + pkName + "\" PRIMARY KEY (" + columnNamesString + ")"));
+                        downQueries.push(new Query("ALTER TABLE " + this.escapePath(table) + " DROP CONSTRAINT \"" + pkName + "\""));
                         return [4 /*yield*/, this.executeQueries(upQueries, downQueries)];
                     case 4:
                         _b.sent();
@@ -1675,7 +1774,7 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
         return tslib_1.__awaiter(this, void 0, void 0, function () {
             return tslib_1.__generator(this, function (_a) {
                 switch (_a.label) {
-                    case 0: return [4 /*yield*/, this.query("TRUNCATE TABLE " + this.escapeTableName(tableName))];
+                    case 0: return [4 /*yield*/, this.query("TRUNCATE TABLE " + this.escapePath(tableName))];
                     case 1:
                         _a.sent();
                         return [2 /*return*/];
@@ -1688,7 +1787,7 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
      */
     PostgresQueryRunner.prototype.clearDatabase = function () {
         return tslib_1.__awaiter(this, void 0, void 0, function () {
-            var schemas, schemaNamesString, selectDropsQuery, dropQueries, error_1, rollbackError_1;
+            var schemas, schemaNamesString, selectViewDropsQuery, dropViewQueries, selectTableDropsQuery, dropTableQueries, error_1, rollbackError_1;
             var _this = this;
             return tslib_1.__generator(this, function (_a) {
                 switch (_a.label) {
@@ -1710,35 +1809,43 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
                         _a.sent();
                         _a.label = 2;
                     case 2:
-                        _a.trys.push([2, 7, , 12]);
-                        selectDropsQuery = "SELECT 'DROP TABLE IF EXISTS \"' || schemaname || '\".\"' || tablename || '\" CASCADE;' as \"query\" FROM \"pg_tables\" WHERE \"schemaname\" IN (" + schemaNamesString + ") AND tablename NOT IN ('spatial_ref_sys')";
-                        return [4 /*yield*/, this.query(selectDropsQuery)];
+                        _a.trys.push([2, 9, , 14]);
+                        selectViewDropsQuery = "SELECT 'DROP VIEW IF EXISTS \"' || schemaname || '\".\"' || viewname || '\" CASCADE;' as \"query\" " +
+                            ("FROM \"pg_views\" WHERE \"schemaname\" IN (" + schemaNamesString + ") AND \"viewname\" NOT IN ('geography_columns', 'geometry_columns', 'raster_columns', 'raster_overviews')");
+                        return [4 /*yield*/, this.query(selectViewDropsQuery)];
                     case 3:
-                        dropQueries = _a.sent();
-                        return [4 /*yield*/, Promise.all(dropQueries.map(function (q) { return _this.query(q["query"]); }))];
+                        dropViewQueries = _a.sent();
+                        return [4 /*yield*/, Promise.all(dropViewQueries.map(function (q) { return _this.query(q["query"]); }))];
                     case 4:
                         _a.sent();
-                        return [4 /*yield*/, this.dropEnumTypes(schemaNamesString)];
+                        selectTableDropsQuery = "SELECT 'DROP TABLE IF EXISTS \"' || schemaname || '\".\"' || tablename || '\" CASCADE;' as \"query\" FROM \"pg_tables\" WHERE \"schemaname\" IN (" + schemaNamesString + ") AND \"tablename\" NOT IN ('spatial_ref_sys')";
+                        return [4 /*yield*/, this.query(selectTableDropsQuery)];
                     case 5:
-                        _a.sent();
-                        return [4 /*yield*/, this.commitTransaction()];
+                        dropTableQueries = _a.sent();
+                        return [4 /*yield*/, Promise.all(dropTableQueries.map(function (q) { return _this.query(q["query"]); }))];
                     case 6:
                         _a.sent();
-                        return [3 /*break*/, 12];
+                        return [4 /*yield*/, this.dropEnumTypes(schemaNamesString)];
                     case 7:
-                        error_1 = _a.sent();
-                        _a.label = 8;
-                    case 8:
-                        _a.trys.push([8, 10, , 11]);
-                        return [4 /*yield*/, this.rollbackTransaction()];
-                    case 9:
                         _a.sent();
-                        return [3 /*break*/, 11];
+                        return [4 /*yield*/, this.commitTransaction()];
+                    case 8:
+                        _a.sent();
+                        return [3 /*break*/, 14];
+                    case 9:
+                        error_1 = _a.sent();
+                        _a.label = 10;
                     case 10:
+                        _a.trys.push([10, 12, , 13]);
+                        return [4 /*yield*/, this.rollbackTransaction()];
+                    case 11:
+                        _a.sent();
+                        return [3 /*break*/, 13];
+                    case 12:
                         rollbackError_1 = _a.sent();
-                        return [3 /*break*/, 11];
-                    case 11: throw error_1;
-                    case 12: return [2 /*return*/];
+                        return [3 /*break*/, 13];
+                    case 13: throw error_1;
+                    case 14: return [2 /*return*/];
                 }
             });
         });
@@ -1746,6 +1853,45 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
     // -------------------------------------------------------------------------
     // Protected Methods
     // -------------------------------------------------------------------------
+    PostgresQueryRunner.prototype.loadViews = function (viewNames) {
+        return tslib_1.__awaiter(this, void 0, void 0, function () {
+            var hasTable, currentSchemaQuery, currentSchema, viewsCondition, query, dbViews;
+            var _this = this;
+            return tslib_1.__generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0: return [4 /*yield*/, this.hasTable(this.getTypeormMetadataTableName())];
+                    case 1:
+                        hasTable = _a.sent();
+                        if (!hasTable)
+                            return [2 /*return*/, Promise.resolve([])];
+                        return [4 /*yield*/, this.query("SELECT * FROM current_schema()")];
+                    case 2:
+                        currentSchemaQuery = _a.sent();
+                        currentSchema = currentSchemaQuery[0]["current_schema"];
+                        viewsCondition = viewNames.map(function (viewName) {
+                            var _a = tslib_1.__read(viewName.split("."), 2), schema = _a[0], name = _a[1];
+                            if (!name) {
+                                name = schema;
+                                schema = _this.driver.options.schema || currentSchema;
+                            }
+                            return "(\"t\".\"schema\" = '" + schema + "' AND \"t\".\"name\" = '" + name + "')";
+                        }).join(" OR ");
+                        query = "SELECT \"t\".*, \"v\".\"check_option\" FROM " + this.escapePath(this.getTypeormMetadataTableName()) + " \"t\" " +
+                            ("INNER JOIN \"information_schema\".\"views\" \"v\" ON \"v\".\"table_schema\" = \"t\".\"schema\" AND \"v\".\"table_name\" = \"t\".\"name\" WHERE \"t\".\"type\" = 'VIEW' " + (viewsCondition ? "AND (" + viewsCondition + ")" : ""));
+                        return [4 /*yield*/, this.query(query)];
+                    case 3:
+                        dbViews = _a.sent();
+                        return [2 /*return*/, dbViews.map(function (dbView) {
+                                var view = new View();
+                                var schema = dbView["schema"] === currentSchema && !_this.driver.options.schema ? undefined : dbView["schema"];
+                                view.name = _this.driver.buildTableName(dbView["name"], schema);
+                                view.expression = dbView["value"];
+                                return view;
+                            })];
+                }
+            });
+        });
+    };
     /**
      * Loads all tables (with given names) from the database and creates a Table from them.
      */
@@ -1772,7 +1918,7 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
                             return "(\"table_schema\" = '" + schema + "' AND \"table_name\" = '" + name + "')";
                         }).join(" OR ");
                         tablesSql = "SELECT * FROM \"information_schema\".\"tables\" WHERE " + tablesCondition;
-                        columnsSql = "SELECT *, (\"udt_schema\" || '.' || \"udt_name\")::\"regtype\" AS \"regtype\" FROM \"information_schema\".\"columns\" WHERE " + tablesCondition;
+                        columnsSql = "SELECT *, ('\"' || \"udt_schema\" || '\".\"' || \"udt_name\" || '\"')::\"regtype\" AS \"regtype\" FROM \"information_schema\".\"columns\" WHERE " + tablesCondition;
                         constraintsCondition = tableNames.map(function (tableName) {
                             var _a = tslib_1.__read(tableName.split("."), 2), schema = _a[0], name = _a[1];
                             if (!name) {
@@ -1809,9 +1955,12 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
                             return "(\"ns\".\"nspname\" = '" + schema + "' AND \"cl\".\"relname\" = '" + name + "')";
                         }).join(" OR ");
                         foreignKeysSql = "SELECT \"con\".\"conname\" AS \"constraint_name\", \"con\".\"nspname\" AS \"table_schema\", \"con\".\"relname\" AS \"table_name\", \"att2\".\"attname\" AS \"column_name\", " +
-                            "\"ns\".\"nspname\" AS \"referenced_table_schema\", \"cl\".\"relname\" AS \"referenced_table_name\", \"att\".\"attname\" AS \"referenced_column_name\", \"con\".\"confdeltype\" AS \"on_delete\", \"con\".\"confupdtype\" AS \"on_update\" " +
+                            "\"ns\".\"nspname\" AS \"referenced_table_schema\", \"cl\".\"relname\" AS \"referenced_table_name\", \"att\".\"attname\" AS \"referenced_column_name\", \"con\".\"confdeltype\" AS \"on_delete\", " +
+                            "\"con\".\"confupdtype\" AS \"on_update\", \"con\".\"condeferrable\" AS \"deferrable\", \"con\".\"condeferred\" AS \"deferred\" " +
                             "FROM ( " +
-                            "SELECT UNNEST (\"con1\".\"conkey\") AS \"parent\", UNNEST (\"con1\".\"confkey\") AS \"child\", \"con1\".\"confrelid\", \"con1\".\"conrelid\", \"con1\".\"conname\", \"con1\".\"contype\", \"ns\".\"nspname\", \"cl\".\"relname\", " +
+                            "SELECT UNNEST (\"con1\".\"conkey\") AS \"parent\", UNNEST (\"con1\".\"confkey\") AS \"child\", \"con1\".\"confrelid\", \"con1\".\"conrelid\", \"con1\".\"conname\", \"con1\".\"contype\", \"ns\".\"nspname\", " +
+                            "\"cl\".\"relname\", \"con1\".\"condeferrable\", " +
+                            "CASE WHEN \"con1\".\"condeferred\" THEN 'INITIALLY DEFERRED' ELSE 'INITIALLY IMMEDIATE' END as condeferred, " +
                             "CASE \"con1\".\"confdeltype\" WHEN 'a' THEN 'NO ACTION' WHEN 'r' THEN 'RESTRICT' WHEN 'c' THEN 'CASCADE' WHEN 'n' THEN 'SET NULL' WHEN 'd' THEN 'SET DEFAULT' END as \"confdeltype\", " +
                             "CASE \"con1\".\"confupdtype\" WHEN 'a' THEN 'NO ACTION' WHEN 'r' THEN 'RESTRICT' WHEN 'c' THEN 'CASCADE' WHEN 'n' THEN 'SET NULL' WHEN 'd' THEN 'SET DEFAULT' END as \"confupdtype\" " +
                             "FROM \"pg_class\" \"cl\" " +
@@ -1903,7 +2052,7 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
                                                                 _a.label = 2;
                                                             case 2:
                                                                 if (!(tableColumn.type === "geometry")) return [3 /*break*/, 4];
-                                                                geometryColumnSql = "SELECT * FROM (\n                        SELECT\n                          f_table_schema table_schema,\n                          f_table_name table_name,\n                          f_geometry_column column_name,\n                          srid,\n                          type\n                        FROM geometry_columns\n                      ) AS _\n                      WHERE " + tablesCondition + " AND column_name = '" + tableColumn.name + "'";
+                                                                geometryColumnSql = "SELECT * FROM (\n                        SELECT\n                          \"f_table_schema\" \"table_schema\",\n                          \"f_table_name\" \"table_name\",\n                          \"f_geometry_column\" \"column_name\",\n                          \"srid\",\n                          \"type\"\n                        FROM \"geometry_columns\"\n                      ) AS _\n                      WHERE " + tablesCondition + " AND \"column_name\" = '" + tableColumn.name + "'";
                                                                 return [4 /*yield*/, this.query(geometryColumnSql)];
                                                             case 3:
                                                                 results = _a.sent();
@@ -1912,7 +2061,7 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
                                                                 _a.label = 4;
                                                             case 4:
                                                                 if (!(tableColumn.type === "geography")) return [3 /*break*/, 6];
-                                                                geographyColumnSql = "SELECT * FROM (\n                        SELECT\n                          f_table_schema table_schema,\n                          f_table_name table_name,\n                          f_geography_column column_name,\n                          srid,\n                          type\n                        FROM geography_columns\n                      ) AS _\n                      WHERE " + tablesCondition + " AND column_name = '" + tableColumn.name + "'";
+                                                                geographyColumnSql = "SELECT * FROM (\n                        SELECT\n                          \"f_table_schema\" \"table_schema\",\n                          \"f_table_name\" \"table_name\",\n                          \"f_geography_column\" \"column_name\",\n                          \"srid\",\n                          \"type\"\n                        FROM \"geography_columns\"\n                      ) AS _\n                      WHERE " + tablesCondition + " AND \"column_name\" = '" + tableColumn.name + "'";
                                                                 return [4 /*yield*/, this.query(geographyColumnSql)];
                                                             case 5:
                                                                 results = _a.sent();
@@ -1939,7 +2088,7 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
                                                                         tableColumn.isGenerated = true;
                                                                         tableColumn.generationStrategy = "increment";
                                                                     }
-                                                                    else if (/^uuid_generate_v\d\(\)/.test(dbColumn["column_default"])) {
+                                                                    else if (dbColumn["column_default"] === "gen_random_uuid()" || /^uuid_generate_v\d\(\)/.test(dbColumn["column_default"])) {
                                                                         tableColumn.isGenerated = true;
                                                                         tableColumn.generationStrategy = "uuid";
                                                                     }
@@ -2006,14 +2155,19 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
                                                     referencedTableName: referencedTableName,
                                                     referencedColumnNames: foreignKeys.map(function (dbFk) { return dbFk["referenced_column_name"]; }),
                                                     onDelete: dbForeignKey["on_delete"],
-                                                    onUpdate: dbForeignKey["on_update"]
+                                                    onUpdate: dbForeignKey["on_update"],
+                                                    deferrable: dbForeignKey["deferrable"] ? dbForeignKey["deferred"] : undefined,
                                                 });
                                             });
                                             tableIndexConstraints = OrmUtils.uniq(dbIndices.filter(function (dbIndex) {
                                                 return _this.driver.buildTableName(dbIndex["table_name"], dbIndex["table_schema"]) === tableFullName;
                                             }), function (dbIndex) { return dbIndex["constraint_name"]; });
                                             table.indices = tableIndexConstraints.map(function (constraint) {
-                                                var indices = dbIndices.filter(function (index) { return index["constraint_name"] === constraint["constraint_name"]; });
+                                                var indices = dbIndices.filter(function (index) {
+                                                    return index["table_schema"] === constraint["table_schema"]
+                                                        && index["table_name"] === constraint["table_name"]
+                                                        && index["constraint_name"] === constraint["constraint_name"];
+                                                });
                                                 return new TableIndex({
                                                     table: table,
                                                     name: constraint["constraint_name"],
@@ -2038,7 +2192,7 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
     PostgresQueryRunner.prototype.createTableSql = function (table, createForeignKeys) {
         var _this = this;
         var columnDefinitions = table.columns.map(function (column) { return _this.buildCreateColumnSql(table, column); }).join(", ");
-        var sql = "CREATE TABLE " + this.escapeTableName(table) + " (" + columnDefinitions;
+        var sql = "CREATE TABLE " + this.escapePath(table) + " (" + columnDefinitions;
         table.columns
             .filter(function (column) { return column.isUnique; })
             .forEach(function (column) {
@@ -2077,11 +2231,13 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
                 if (!fk.name)
                     fk.name = _this.connection.namingStrategy.foreignKeyName(table.name, fk.columnNames);
                 var referencedColumnNames = fk.referencedColumnNames.map(function (columnName) { return "\"" + columnName + "\""; }).join(", ");
-                var constraint = "CONSTRAINT \"" + fk.name + "\" FOREIGN KEY (" + columnNames + ") REFERENCES " + _this.escapeTableName(fk.referencedTableName) + " (" + referencedColumnNames + ")";
+                var constraint = "CONSTRAINT \"" + fk.name + "\" FOREIGN KEY (" + columnNames + ") REFERENCES " + _this.escapePath(fk.referencedTableName) + " (" + referencedColumnNames + ")";
                 if (fk.onDelete)
                     constraint += " ON DELETE " + fk.onDelete;
                 if (fk.onUpdate)
                     constraint += " ON UPDATE " + fk.onUpdate;
+                if (fk.deferrable)
+                    constraint += " DEFERRABLE " + fk.deferrable;
                 return constraint;
             }).join(", ");
             sql += ", " + foreignKeysSql;
@@ -2093,7 +2249,86 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
             sql += ", CONSTRAINT \"" + primaryKeyName + "\" PRIMARY KEY (" + columnNames + ")";
         }
         sql += ")";
-        return sql;
+        return new Query(sql);
+    };
+    /**
+     * Builds drop table sql.
+     */
+    PostgresQueryRunner.prototype.dropTableSql = function (tableOrPath) {
+        return new Query("DROP TABLE " + this.escapePath(tableOrPath));
+    };
+    PostgresQueryRunner.prototype.createViewSql = function (view) {
+        if (typeof view.expression === "string") {
+            return new Query("CREATE VIEW " + this.escapePath(view) + " AS " + view.expression);
+        }
+        else {
+            return new Query("CREATE VIEW " + this.escapePath(view) + " AS " + view.expression(this.connection).getQuery());
+        }
+    };
+    PostgresQueryRunner.prototype.insertViewDefinitionSql = function (view) {
+        return tslib_1.__awaiter(this, void 0, void 0, function () {
+            var currentSchemaQuery, currentSchema, splittedName, schema, name, expression, _a, query, parameters;
+            return tslib_1.__generator(this, function (_b) {
+                switch (_b.label) {
+                    case 0: return [4 /*yield*/, this.query("SELECT * FROM current_schema()")];
+                    case 1:
+                        currentSchemaQuery = _b.sent();
+                        currentSchema = currentSchemaQuery[0]["current_schema"];
+                        splittedName = view.name.split(".");
+                        schema = this.driver.options.schema || currentSchema;
+                        name = view.name;
+                        if (splittedName.length === 2) {
+                            schema = splittedName[0];
+                            name = splittedName[1];
+                        }
+                        expression = typeof view.expression === "string" ? view.expression.trim() : view.expression(this.connection).getQuery();
+                        _a = tslib_1.__read(this.connection.createQueryBuilder()
+                            .insert()
+                            .into(this.getTypeormMetadataTableName())
+                            .values({ type: "VIEW", schema: schema, name: name, value: expression })
+                            .getQueryAndParameters(), 2), query = _a[0], parameters = _a[1];
+                        return [2 /*return*/, new Query(query, parameters)];
+                }
+            });
+        });
+    };
+    /**
+     * Builds drop view sql.
+     */
+    PostgresQueryRunner.prototype.dropViewSql = function (viewOrPath) {
+        return new Query("DROP VIEW " + this.escapePath(viewOrPath));
+    };
+    /**
+     * Builds remove view sql.
+     */
+    PostgresQueryRunner.prototype.deleteViewDefinitionSql = function (viewOrPath) {
+        return tslib_1.__awaiter(this, void 0, void 0, function () {
+            var currentSchemaQuery, currentSchema, viewName, splittedName, schema, name, qb, _a, query, parameters;
+            return tslib_1.__generator(this, function (_b) {
+                switch (_b.label) {
+                    case 0: return [4 /*yield*/, this.query("SELECT * FROM current_schema()")];
+                    case 1:
+                        currentSchemaQuery = _b.sent();
+                        currentSchema = currentSchemaQuery[0]["current_schema"];
+                        viewName = viewOrPath instanceof View ? viewOrPath.name : viewOrPath;
+                        splittedName = viewName.split(".");
+                        schema = this.driver.options.schema || currentSchema;
+                        name = viewName;
+                        if (splittedName.length === 2) {
+                            schema = splittedName[0];
+                            name = splittedName[1];
+                        }
+                        qb = this.connection.createQueryBuilder();
+                        _a = tslib_1.__read(qb.delete()
+                            .from(this.getTypeormMetadataTableName())
+                            .where(qb.escape("type") + " = 'VIEW'")
+                            .andWhere(qb.escape("schema") + " = :schema", { schema: schema })
+                            .andWhere(qb.escape("name") + " = :name", { name: name })
+                            .getQueryAndParameters(), 2), query = _a[0], parameters = _a[1];
+                        return [2 /*return*/, new Query(query, parameters)];
+                }
+            });
+        });
     };
     /**
      * Extracts schema name from given Table object or table name string.
@@ -2156,7 +2391,7 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
         if (!enumName)
             enumName = this.buildEnumName(table, column);
         var enumValues = column.enum.map(function (value) { return "'" + value + "'"; }).join(", ");
-        return "CREATE TYPE " + enumName + " AS ENUM(" + enumValues + ")";
+        return new Query("CREATE TYPE " + enumName + " AS ENUM(" + enumValues + ")");
     };
     /**
      * Builds create ENUM type sql.
@@ -2164,20 +2399,14 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
     PostgresQueryRunner.prototype.dropEnumTypeSql = function (table, column, enumName) {
         if (!enumName)
             enumName = this.buildEnumName(table, column);
-        return "DROP TYPE " + enumName;
-    };
-    /**
-     * Builds drop table sql.
-     */
-    PostgresQueryRunner.prototype.dropTableSql = function (tableOrPath) {
-        return "DROP TABLE " + this.escapeTableName(tableOrPath);
+        return new Query("DROP TYPE " + enumName);
     };
     /**
      * Builds create index sql.
      */
     PostgresQueryRunner.prototype.createIndexSql = function (table, index) {
         var columns = index.columnNames.map(function (columnName) { return "\"" + columnName + "\""; }).join(", ");
-        return "CREATE " + (index.isUnique ? "UNIQUE " : "") + "INDEX \"" + index.name + "\" ON " + this.escapeTableName(table) + " " + (index.isSpatial ? "USING GiST " : "") + "(" + columns + ") " + (index.where ? "WHERE " + index.where : "");
+        return new Query("CREATE " + (index.isUnique ? "UNIQUE " : "") + "INDEX \"" + index.name + "\" ON " + this.escapePath(table) + " " + (index.isSpatial ? "USING GiST " : "") + "(" + columns + ") " + (index.where ? "WHERE " + index.where : ""));
     };
     /**
      * Builds drop index sql.
@@ -2185,7 +2414,7 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
     PostgresQueryRunner.prototype.dropIndexSql = function (table, indexOrName) {
         var indexName = indexOrName instanceof TableIndex ? indexOrName.name : indexOrName;
         var schema = this.extractSchema(table);
-        return schema ? "DROP INDEX \"" + schema + "\".\"" + indexName + "\"" : "DROP INDEX \"" + indexName + "\"";
+        return schema ? new Query("DROP INDEX \"" + schema + "\".\"" + indexName + "\"") : new Query("DROP INDEX \"" + indexName + "\"");
     };
     /**
      * Builds create primary key sql.
@@ -2193,7 +2422,7 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
     PostgresQueryRunner.prototype.createPrimaryKeySql = function (table, columnNames) {
         var primaryKeyName = this.connection.namingStrategy.primaryKeyName(table.name, columnNames);
         var columnNamesString = columnNames.map(function (columnName) { return "\"" + columnName + "\""; }).join(", ");
-        return "ALTER TABLE " + this.escapeTableName(table) + " ADD CONSTRAINT \"" + primaryKeyName + "\" PRIMARY KEY (" + columnNamesString + ")";
+        return new Query("ALTER TABLE " + this.escapePath(table) + " ADD CONSTRAINT \"" + primaryKeyName + "\" PRIMARY KEY (" + columnNamesString + ")");
     };
     /**
      * Builds drop primary key sql.
@@ -2201,47 +2430,47 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
     PostgresQueryRunner.prototype.dropPrimaryKeySql = function (table) {
         var columnNames = table.primaryColumns.map(function (column) { return column.name; });
         var primaryKeyName = this.connection.namingStrategy.primaryKeyName(table.name, columnNames);
-        return "ALTER TABLE " + this.escapeTableName(table) + " DROP CONSTRAINT \"" + primaryKeyName + "\"";
+        return new Query("ALTER TABLE " + this.escapePath(table) + " DROP CONSTRAINT \"" + primaryKeyName + "\"");
     };
     /**
      * Builds create unique constraint sql.
      */
     PostgresQueryRunner.prototype.createUniqueConstraintSql = function (table, uniqueConstraint) {
         var columnNames = uniqueConstraint.columnNames.map(function (column) { return "\"" + column + "\""; }).join(", ");
-        return "ALTER TABLE " + this.escapeTableName(table) + " ADD CONSTRAINT \"" + uniqueConstraint.name + "\" UNIQUE (" + columnNames + ")";
+        return new Query("ALTER TABLE " + this.escapePath(table) + " ADD CONSTRAINT \"" + uniqueConstraint.name + "\" UNIQUE (" + columnNames + ")");
     };
     /**
      * Builds drop unique constraint sql.
      */
     PostgresQueryRunner.prototype.dropUniqueConstraintSql = function (table, uniqueOrName) {
         var uniqueName = uniqueOrName instanceof TableUnique ? uniqueOrName.name : uniqueOrName;
-        return "ALTER TABLE " + this.escapeTableName(table) + " DROP CONSTRAINT \"" + uniqueName + "\"";
+        return new Query("ALTER TABLE " + this.escapePath(table) + " DROP CONSTRAINT \"" + uniqueName + "\"");
     };
     /**
      * Builds create check constraint sql.
      */
     PostgresQueryRunner.prototype.createCheckConstraintSql = function (table, checkConstraint) {
-        return "ALTER TABLE " + this.escapeTableName(table) + " ADD CONSTRAINT \"" + checkConstraint.name + "\" CHECK (" + checkConstraint.expression + ")";
+        return new Query("ALTER TABLE " + this.escapePath(table) + " ADD CONSTRAINT \"" + checkConstraint.name + "\" CHECK (" + checkConstraint.expression + ")");
     };
     /**
      * Builds drop check constraint sql.
      */
     PostgresQueryRunner.prototype.dropCheckConstraintSql = function (table, checkOrName) {
         var checkName = checkOrName instanceof TableCheck ? checkOrName.name : checkOrName;
-        return "ALTER TABLE " + this.escapeTableName(table) + " DROP CONSTRAINT \"" + checkName + "\"";
+        return new Query("ALTER TABLE " + this.escapePath(table) + " DROP CONSTRAINT \"" + checkName + "\"");
     };
     /**
      * Builds create exclusion constraint sql.
      */
     PostgresQueryRunner.prototype.createExclusionConstraintSql = function (table, exclusionConstraint) {
-        return "ALTER TABLE " + this.escapeTableName(table) + " ADD CONSTRAINT \"" + exclusionConstraint.name + "\" EXCLUDE " + exclusionConstraint.expression;
+        return new Query("ALTER TABLE " + this.escapePath(table) + " ADD CONSTRAINT \"" + exclusionConstraint.name + "\" EXCLUDE " + exclusionConstraint.expression);
     };
     /**
      * Builds drop exclusion constraint sql.
      */
     PostgresQueryRunner.prototype.dropExclusionConstraintSql = function (table, exclusionOrName) {
         var exclusionName = exclusionOrName instanceof TableExclusion ? exclusionOrName.name : exclusionOrName;
-        return "ALTER TABLE " + this.escapeTableName(table) + " DROP CONSTRAINT \"" + exclusionName + "\"";
+        return new Query("ALTER TABLE " + this.escapePath(table) + " DROP CONSTRAINT \"" + exclusionName + "\"");
     };
     /**
      * Builds create foreign key sql.
@@ -2249,20 +2478,22 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
     PostgresQueryRunner.prototype.createForeignKeySql = function (table, foreignKey) {
         var columnNames = foreignKey.columnNames.map(function (column) { return "\"" + column + "\""; }).join(", ");
         var referencedColumnNames = foreignKey.referencedColumnNames.map(function (column) { return "\"" + column + "\""; }).join(",");
-        var sql = "ALTER TABLE " + this.escapeTableName(table) + " ADD CONSTRAINT \"" + foreignKey.name + "\" FOREIGN KEY (" + columnNames + ") " +
-            ("REFERENCES " + this.escapeTableName(foreignKey.referencedTableName) + "(" + referencedColumnNames + ")");
+        var sql = "ALTER TABLE " + this.escapePath(table) + " ADD CONSTRAINT \"" + foreignKey.name + "\" FOREIGN KEY (" + columnNames + ") " +
+            ("REFERENCES " + this.escapePath(foreignKey.referencedTableName) + "(" + referencedColumnNames + ")");
         if (foreignKey.onDelete)
             sql += " ON DELETE " + foreignKey.onDelete;
         if (foreignKey.onUpdate)
             sql += " ON UPDATE " + foreignKey.onUpdate;
-        return sql;
+        if (foreignKey.deferrable)
+            sql += " DEFERRABLE " + foreignKey.deferrable;
+        return new Query(sql);
     };
     /**
      * Builds drop foreign key sql.
      */
     PostgresQueryRunner.prototype.dropForeignKeySql = function (table, foreignKeyOrName) {
         var foreignKeyName = foreignKeyOrName instanceof TableForeignKey ? foreignKeyOrName.name : foreignKeyOrName;
-        return "ALTER TABLE " + this.escapeTableName(table) + " DROP CONSTRAINT \"" + foreignKeyName + "\"";
+        return new Query("ALTER TABLE " + this.escapePath(table) + " DROP CONSTRAINT \"" + foreignKeyName + "\"");
     };
     /**
      * Builds sequence name from given table and column.
@@ -2300,11 +2531,37 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
             return disableEscape ? i : "\"" + i + "\"";
         }).join(".");
     };
+    PostgresQueryRunner.prototype.getEnumTypeName = function (table, column) {
+        return tslib_1.__awaiter(this, void 0, void 0, function () {
+            var currentSchemaQuery, currentSchema, _a, schema, name, result;
+            return tslib_1.__generator(this, function (_b) {
+                switch (_b.label) {
+                    case 0: return [4 /*yield*/, this.query("SELECT * FROM current_schema()")];
+                    case 1:
+                        currentSchemaQuery = _b.sent();
+                        currentSchema = currentSchemaQuery[0]["current_schema"];
+                        _a = tslib_1.__read(table.name.split("."), 2), schema = _a[0], name = _a[1];
+                        if (!name) {
+                            name = schema;
+                            schema = this.driver.options.schema || currentSchema;
+                        }
+                        return [4 /*yield*/, this.query("SELECT \"udt_schema\", \"udt_name\" " +
+                                ("FROM \"information_schema\".\"columns\" WHERE \"table_schema\" = '" + schema + "' AND \"table_name\" = '" + name + "' AND \"column_name\"='" + column.name + "'"))];
+                    case 2:
+                        result = _b.sent();
+                        return [2 /*return*/, {
+                                enumTypeSchema: result[0]["udt_schema"],
+                                enumTypeName: result[0]["udt_name"]
+                            }];
+                }
+            });
+        });
+    };
     /**
-     * Escapes given table path.
+     * Escapes given table or view path.
      */
-    PostgresQueryRunner.prototype.escapeTableName = function (target, disableEscape) {
-        var tableName = target instanceof Table ? target.name : target;
+    PostgresQueryRunner.prototype.escapePath = function (target, disableEscape) {
+        var tableName = target instanceof Table || target instanceof View ? target.name : target;
         tableName = tableName.indexOf(".") === -1 && this.driver.options.schema ? this.driver.options.schema + "." + tableName : tableName;
         return tableName.split(".").map(function (i) {
             return disableEscape ? i : "\"" + i + "\"";
@@ -2341,7 +2598,7 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
             if (column.type === "bigint" || column.type === "int8")
                 c += " BIGSERIAL";
         }
-        if (column.type === "enum") {
+        if (column.type === "enum" || column.type === "simple-enum") {
             c += " " + this.buildEnumName(table, column);
             if (column.isArray)
                 c += " array";
@@ -2358,7 +2615,7 @@ var PostgresQueryRunner = /** @class */ (function (_super) {
         if (column.default !== undefined && column.default !== null)
             c += " DEFAULT " + column.default;
         if (column.isGenerated && column.generationStrategy === "uuid" && !column.default)
-            c += " DEFAULT uuid_generate_v4()";
+            c += " DEFAULT " + this.driver.uuidGenerator;
         return c;
     };
     return PostgresQueryRunner;

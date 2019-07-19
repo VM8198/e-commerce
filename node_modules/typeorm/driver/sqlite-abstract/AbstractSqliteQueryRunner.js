@@ -8,6 +8,8 @@ var ColumnMetadata_1 = require("../../metadata/ColumnMetadata");
 var Table_1 = require("../../schema-builder/table/Table");
 var TableIndex_1 = require("../../schema-builder/table/TableIndex");
 var TableForeignKey_1 = require("../../schema-builder/table/TableForeignKey");
+var View_1 = require("../../schema-builder/view/View");
+var Query_1 = require("../Query");
 var TableUnique_1 = require("../../schema-builder/table/TableUnique");
 var BaseQueryRunner_1 = require("../../query-runner/BaseQueryRunner");
 var OrmUtils_1 = require("../../util/OrmUtils");
@@ -330,6 +332,56 @@ var AbstractSqliteQueryRunner = /** @class */ (function (_super) {
         });
     };
     /**
+     * Creates a new view.
+     */
+    AbstractSqliteQueryRunner.prototype.createView = function (view) {
+        return tslib_1.__awaiter(this, void 0, void 0, function () {
+            var upQueries, downQueries;
+            return tslib_1.__generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0:
+                        upQueries = [];
+                        downQueries = [];
+                        upQueries.push(this.createViewSql(view));
+                        upQueries.push(this.insertViewDefinitionSql(view));
+                        downQueries.push(this.dropViewSql(view));
+                        downQueries.push(this.deleteViewDefinitionSql(view));
+                        return [4 /*yield*/, this.executeQueries(upQueries, downQueries)];
+                    case 1:
+                        _a.sent();
+                        return [2 /*return*/];
+                }
+            });
+        });
+    };
+    /**
+     * Drops the view.
+     */
+    AbstractSqliteQueryRunner.prototype.dropView = function (target) {
+        return tslib_1.__awaiter(this, void 0, void 0, function () {
+            var viewName, view, upQueries, downQueries;
+            return tslib_1.__generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0:
+                        viewName = target instanceof View_1.View ? target.name : target;
+                        return [4 /*yield*/, this.getCachedView(viewName)];
+                    case 1:
+                        view = _a.sent();
+                        upQueries = [];
+                        downQueries = [];
+                        upQueries.push(this.deleteViewDefinitionSql(view));
+                        upQueries.push(this.dropViewSql(view));
+                        downQueries.push(this.insertViewDefinitionSql(view));
+                        downQueries.push(this.createViewSql(view));
+                        return [4 /*yield*/, this.executeQueries(upQueries, downQueries)];
+                    case 2:
+                        _a.sent();
+                        return [2 /*return*/];
+                }
+            });
+        });
+    };
+    /**
      * Renames the given table.
      */
     AbstractSqliteQueryRunner.prototype.renameTable = function (oldTableOrName, newTableName) {
@@ -350,8 +402,8 @@ var AbstractSqliteQueryRunner = /** @class */ (function (_super) {
                         oldTable = _a;
                         newTable = oldTable.clone();
                         newTable.name = newTableName;
-                        up = "ALTER TABLE \"" + oldTable.name + "\" RENAME TO \"" + newTableName + "\"";
-                        down = "ALTER TABLE \"" + newTableName + "\" RENAME TO \"" + oldTable.name + "\"";
+                        up = new Query_1.Query("ALTER TABLE \"" + oldTable.name + "\" RENAME TO \"" + newTableName + "\"");
+                        down = new Query_1.Query("ALTER TABLE \"" + newTableName + "\" RENAME TO \"" + oldTable.name + "\"");
                         return [4 /*yield*/, this.executeQueries(up, down)];
                     case 4:
                         _b.sent();
@@ -1161,7 +1213,7 @@ var AbstractSqliteQueryRunner = /** @class */ (function (_super) {
      */
     AbstractSqliteQueryRunner.prototype.clearDatabase = function () {
         return tslib_1.__awaiter(this, void 0, void 0, function () {
-            var selectDropsQuery, dropQueries, error_1, rollbackError_1;
+            var selectViewDropsQuery, dropViewQueries, selectTableDropsQuery, dropTableQueries, error_1, rollbackError_1;
             var _this = this;
             return tslib_1.__generator(this, function (_a) {
                 switch (_a.label) {
@@ -1173,36 +1225,43 @@ var AbstractSqliteQueryRunner = /** @class */ (function (_super) {
                         _a.sent();
                         _a.label = 3;
                     case 3:
-                        _a.trys.push([3, 7, 12, 14]);
-                        selectDropsQuery = "SELECT 'DROP TABLE \"' || name || '\";' as query FROM \"sqlite_master\" WHERE \"type\" = 'table' AND \"name\" != 'sqlite_sequence'";
-                        return [4 /*yield*/, this.query(selectDropsQuery)];
+                        _a.trys.push([3, 9, 14, 16]);
+                        selectViewDropsQuery = "SELECT 'DROP VIEW \"' || name || '\";' as query FROM \"sqlite_master\" WHERE \"type\" = 'view'";
+                        return [4 /*yield*/, this.query(selectViewDropsQuery)];
                     case 4:
-                        dropQueries = _a.sent();
-                        return [4 /*yield*/, Promise.all(dropQueries.map(function (q) { return _this.query(q["query"]); }))];
+                        dropViewQueries = _a.sent();
+                        return [4 /*yield*/, Promise.all(dropViewQueries.map(function (q) { return _this.query(q["query"]); }))];
                     case 5:
                         _a.sent();
-                        return [4 /*yield*/, this.commitTransaction()];
+                        selectTableDropsQuery = "SELECT 'DROP TABLE \"' || name || '\";' as query FROM \"sqlite_master\" WHERE \"type\" = 'table' AND \"name\" != 'sqlite_sequence'";
+                        return [4 /*yield*/, this.query(selectTableDropsQuery)];
                     case 6:
-                        _a.sent();
-                        return [3 /*break*/, 14];
+                        dropTableQueries = _a.sent();
+                        return [4 /*yield*/, Promise.all(dropTableQueries.map(function (q) { return _this.query(q["query"]); }))];
                     case 7:
-                        error_1 = _a.sent();
-                        _a.label = 8;
-                    case 8:
-                        _a.trys.push([8, 10, , 11]);
-                        return [4 /*yield*/, this.rollbackTransaction()];
-                    case 9:
                         _a.sent();
-                        return [3 /*break*/, 11];
+                        return [4 /*yield*/, this.commitTransaction()];
+                    case 8:
+                        _a.sent();
+                        return [3 /*break*/, 16];
+                    case 9:
+                        error_1 = _a.sent();
+                        _a.label = 10;
                     case 10:
+                        _a.trys.push([10, 12, , 13]);
+                        return [4 /*yield*/, this.rollbackTransaction()];
+                    case 11:
+                        _a.sent();
+                        return [3 /*break*/, 13];
+                    case 12:
                         rollbackError_1 = _a.sent();
-                        return [3 /*break*/, 11];
-                    case 11: throw error_1;
-                    case 12: return [4 /*yield*/, this.query("PRAGMA foreign_keys = ON;")];
-                    case 13:
+                        return [3 /*break*/, 13];
+                    case 13: throw error_1;
+                    case 14: return [4 /*yield*/, this.query("PRAGMA foreign_keys = ON;")];
+                    case 15:
                         _a.sent();
                         return [7 /*endfinally*/];
-                    case 14: return [2 /*return*/];
+                    case 16: return [2 /*return*/];
                 }
             });
         });
@@ -1210,6 +1269,33 @@ var AbstractSqliteQueryRunner = /** @class */ (function (_super) {
     // -------------------------------------------------------------------------
     // Protected Methods
     // -------------------------------------------------------------------------
+    AbstractSqliteQueryRunner.prototype.loadViews = function (viewNames) {
+        return tslib_1.__awaiter(this, void 0, void 0, function () {
+            var hasTable, viewNamesString, query, dbViews;
+            return tslib_1.__generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0: return [4 /*yield*/, this.hasTable(this.getTypeormMetadataTableName())];
+                    case 1:
+                        hasTable = _a.sent();
+                        if (!hasTable)
+                            return [2 /*return*/, Promise.resolve([])];
+                        viewNamesString = viewNames.map(function (name) { return "'" + name + "'"; }).join(", ");
+                        query = "SELECT \"t\".* FROM \"" + this.getTypeormMetadataTableName() + "\" \"t\" INNER JOIN \"sqlite_master\" s ON \"s\".\"name\" = \"t\".\"name\" AND \"s\".\"type\" = 'view' WHERE \"t\".\"type\" = 'VIEW'";
+                        if (viewNamesString.length > 0)
+                            query += " AND \"t\".\"name\" IN (" + viewNamesString + ")";
+                        return [4 /*yield*/, this.query(query)];
+                    case 2:
+                        dbViews = _a.sent();
+                        return [2 /*return*/, dbViews.map(function (dbView) {
+                                var view = new View_1.View();
+                                view.name = dbView["name"];
+                                view.expression = dbView["value"];
+                                return view;
+                            })];
+                }
+            });
+        });
+    };
     /**
      * Loads all tables (with given names) from the database and creates a Table from them.
      */
@@ -1280,6 +1366,15 @@ var AbstractSqliteQueryRunner = /** @class */ (function (_super) {
                                                 tableColumn.isGenerated = autoIncrementColumnName === dbColumn["name"];
                                                 if (tableColumn.isGenerated) {
                                                     tableColumn.generationStrategy = "increment";
+                                                }
+                                                if (tableColumn.type === "varchar") {
+                                                    // Check if this is an enum
+                                                    var enumMatch = sql.match(new RegExp("\"(" + tableColumn.name + ")\" varchar CHECK\\s*\\(\\s*\\1\\s+IN\\s*\\(('[^']+'(?:\\s*,\\s*'[^']+')+)\\s*\\)\\s*\\)"));
+                                                    if (enumMatch) {
+                                                        // This is an enum
+                                                        tableColumn.type = "simple-enum";
+                                                        tableColumn.enum = enumMatch[2].substr(1, enumMatch[2].length - 2).split("','");
+                                                    }
                                                 }
                                                 // parse datatype and attempt to retrieve length
                                                 var pos = tableColumn.type.indexOf("(");
@@ -1449,28 +1544,66 @@ var AbstractSqliteQueryRunner = /** @class */ (function (_super) {
             sql += ", PRIMARY KEY (" + columnNames + ")";
         }
         sql += ")";
-        return sql;
+        return new Query_1.Query(sql);
     };
     /**
      * Builds drop table sql.
      */
     AbstractSqliteQueryRunner.prototype.dropTableSql = function (tableOrName, ifExist) {
         var tableName = tableOrName instanceof Table_1.Table ? tableOrName.name : tableOrName;
-        return ifExist ? "DROP TABLE IF EXISTS \"" + tableName + "\"" : "DROP TABLE \"" + tableName + "\"";
+        var query = ifExist ? "DROP TABLE IF EXISTS \"" + tableName + "\"" : "DROP TABLE \"" + tableName + "\"";
+        return new Query_1.Query(query);
+    };
+    AbstractSqliteQueryRunner.prototype.createViewSql = function (view) {
+        if (typeof view.expression === "string") {
+            return new Query_1.Query("CREATE VIEW \"" + view.name + "\" AS " + view.expression);
+        }
+        else {
+            return new Query_1.Query("CREATE VIEW \"" + view.name + "\" AS " + view.expression(this.connection).getQuery());
+        }
+    };
+    AbstractSqliteQueryRunner.prototype.insertViewDefinitionSql = function (view) {
+        var expression = typeof view.expression === "string" ? view.expression.trim() : view.expression(this.connection).getQuery();
+        var _a = tslib_1.__read(this.connection.createQueryBuilder()
+            .insert()
+            .into(this.getTypeormMetadataTableName())
+            .values({ type: "VIEW", name: view.name, value: expression })
+            .getQueryAndParameters(), 2), query = _a[0], parameters = _a[1];
+        return new Query_1.Query(query, parameters);
+    };
+    /**
+     * Builds drop view sql.
+     */
+    AbstractSqliteQueryRunner.prototype.dropViewSql = function (viewOrPath) {
+        var viewName = viewOrPath instanceof View_1.View ? viewOrPath.name : viewOrPath;
+        return new Query_1.Query("DROP VIEW \"" + viewName + "\"");
+    };
+    /**
+     * Builds remove view sql.
+     */
+    AbstractSqliteQueryRunner.prototype.deleteViewDefinitionSql = function (viewOrPath) {
+        var viewName = viewOrPath instanceof View_1.View ? viewOrPath.name : viewOrPath;
+        var qb = this.connection.createQueryBuilder();
+        var _a = tslib_1.__read(qb.delete()
+            .from(this.getTypeormMetadataTableName())
+            .where(qb.escape("type") + " = 'VIEW'")
+            .andWhere(qb.escape("name") + " = :name", { name: viewName })
+            .getQueryAndParameters(), 2), query = _a[0], parameters = _a[1];
+        return new Query_1.Query(query, parameters);
     };
     /**
      * Builds create index sql.
      */
     AbstractSqliteQueryRunner.prototype.createIndexSql = function (table, index) {
         var columns = index.columnNames.map(function (columnName) { return "\"" + columnName + "\""; }).join(", ");
-        return "CREATE " + (index.isUnique ? "UNIQUE " : "") + "INDEX \"" + index.name + "\" ON \"" + table.name + "\" (" + columns + ") " + (index.where ? "WHERE " + index.where : "");
+        return new Query_1.Query("CREATE " + (index.isUnique ? "UNIQUE " : "") + "INDEX \"" + index.name + "\" ON \"" + table.name + "\" (" + columns + ") " + (index.where ? "WHERE " + index.where : ""));
     };
     /**
      * Builds drop index sql.
      */
     AbstractSqliteQueryRunner.prototype.dropIndexSql = function (indexOrName) {
         var indexName = indexOrName instanceof TableIndex_1.TableIndex ? indexOrName.name : indexOrName;
-        return "DROP INDEX \"" + indexName + "\"";
+        return new Query_1.Query("DROP INDEX \"" + indexName + "\"");
     };
     /**
      * Builds a query for create column.
@@ -1483,6 +1616,8 @@ var AbstractSqliteQueryRunner = /** @class */ (function (_super) {
         else {
             c += " " + this.connection.driver.createFullType(column);
         }
+        if (column.enum)
+            c += " CHECK( " + column.name + " IN (" + column.enum.map(function (val) { return "'" + val + "'"; }).join(",") + ") )";
         if (column.isPrimary && !skipPrimary)
             c += " PRIMARY KEY";
         if (column.isGenerated === true && column.generationStrategy === "increment") // don't use skipPrimary here since updates can update already exist primary without auto inc.
@@ -1529,15 +1664,15 @@ var AbstractSqliteQueryRunner = /** @class */ (function (_super) {
                                     return newTable.columns.find(function (c) { return c.name === column.name; });
                                 }).map(function (column) { return "\"" + column.name + "\""; }).join(", ");
                             }
-                            upQueries.push("INSERT INTO \"" + newTable.name + "\"(" + newColumnNames + ") SELECT " + oldColumnNames + " FROM \"" + oldTable.name + "\"");
-                            downQueries.push("INSERT INTO \"" + oldTable.name + "\"(" + oldColumnNames + ") SELECT " + newColumnNames + " FROM \"" + newTable.name + "\"");
+                            upQueries.push(new Query_1.Query("INSERT INTO \"" + newTable.name + "\"(" + newColumnNames + ") SELECT " + oldColumnNames + " FROM \"" + oldTable.name + "\""));
+                            downQueries.push(new Query_1.Query("INSERT INTO \"" + oldTable.name + "\"(" + oldColumnNames + ") SELECT " + newColumnNames + " FROM \"" + newTable.name + "\""));
                         }
                         // drop old table
                         upQueries.push(this.dropTableSql(oldTable));
                         downQueries.push(this.createTableSql(oldTable, true));
                         // rename old table
-                        upQueries.push("ALTER TABLE \"" + newTable.name + "\" RENAME TO \"" + oldTable.name + "\"");
-                        downQueries.push("ALTER TABLE \"" + oldTable.name + "\" RENAME TO \"" + newTable.name + "\"");
+                        upQueries.push(new Query_1.Query("ALTER TABLE \"" + newTable.name + "\" RENAME TO \"" + oldTable.name + "\""));
+                        downQueries.push(new Query_1.Query("ALTER TABLE \"" + oldTable.name + "\" RENAME TO \"" + newTable.name + "\""));
                         newTable.name = oldTable.name;
                         // recreate table indices
                         newTable.indices.forEach(function (index) {

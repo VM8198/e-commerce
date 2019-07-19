@@ -24,7 +24,16 @@ var SqljsEntityManager = /** @class */ (function (_super) {
      * or uses the given definition to open a new database.
      */
     SqljsEntityManager.prototype.loadDatabase = function (fileNameOrLocalStorageOrData) {
-        this.driver.load(fileNameOrLocalStorageOrData);
+        return tslib_1.__awaiter(this, void 0, void 0, function () {
+            return tslib_1.__generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0: return [4 /*yield*/, this.driver.load(fileNameOrLocalStorageOrData)];
+                    case 1:
+                        _a.sent();
+                        return [2 /*return*/];
+                }
+            });
+        });
     };
     /**
      * Saves the current database to a file (Node.js) or localstorage (browser)

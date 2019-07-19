@@ -1,9 +1,9 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+var tslib_1 = require("tslib");
 var OrmUtils_1 = require("../../util/OrmUtils");
 var EntityMetadata_1 = require("../../metadata/EntityMetadata");
-var StringUtils_1 = require("../../util/StringUtils");
-var OracleDriver_1 = require("../../driver/oracle/OracleDriver");
+var DriverUtils_1 = require("../../driver/DriverUtils");
 /**
  * Transforms raw sql results returned from the database into entity object.
  * Entity is constructed based on its entity metadata.
@@ -46,9 +46,21 @@ var RawSqlResultsToEntityTransformer = /** @class */ (function () {
     RawSqlResultsToEntityTransformer.prototype.group = function (rawResults, alias) {
         var _this = this;
         var map = new Map();
-        var keys = alias.metadata.primaryColumns.map(function (column) { return _this.buildColumnAlias(alias.name, column.databaseName); });
+        var keys = [];
+        if (alias.metadata.tableType === "view") {
+            keys.push.apply(keys, tslib_1.__spread(alias.metadata.columns.map(function (column) { return DriverUtils_1.DriverUtils.buildColumnAlias(_this.driver, alias.name, column.databaseName); })));
+        }
+        else {
+            keys.push.apply(keys, tslib_1.__spread(alias.metadata.primaryColumns.map(function (column) { return DriverUtils_1.DriverUtils.buildColumnAlias(_this.driver, alias.name, column.databaseName); })));
+        }
         rawResults.forEach(function (rawResult) {
-            var id = keys.map(function (key) { return rawResult[key]; }).join("_"); // todo: check partial
+            var id = keys.map(function (key) {
+                var keyValue = rawResult[key];
+                if (Buffer.isBuffer(keyValue)) {
+                    return keyValue.toString("hex");
+                }
+                return keyValue;
+            }).join("_"); // todo: check partial
             if (!id)
                 return;
             var items = map.get(id);
@@ -69,7 +81,7 @@ var RawSqlResultsToEntityTransformer = /** @class */ (function () {
         // let hasColumns = false; // , hasEmbeddedColumns = false, hasParentColumns = false, hasParentEmbeddedColumns = false;
         var metadata = alias.metadata;
         if (metadata.discriminatorColumn) {
-            var discriminatorValues_1 = rawResults.map(function (result) { return result[_this.buildColumnAlias(alias.name, alias.metadata.discriminatorColumn.databaseName)]; });
+            var discriminatorValues_1 = rawResults.map(function (result) { return result[DriverUtils_1.DriverUtils.buildColumnAlias(_this.driver, alias.name, alias.metadata.discriminatorColumn.databaseName)]; });
             var discriminatorMetadata = metadata.childEntityMetadatas.find(function (childEntityMetadata) {
                 return !!discriminatorValues_1.find(function (value) { return value === childEntityMetadata.discriminatorValue; });
             });
@@ -102,7 +114,7 @@ var RawSqlResultsToEntityTransformer = /** @class */ (function () {
             // if table inheritance is used make sure this column is not child's column
             if (metadata.childEntityMetadatas.length > 0 && metadata.childEntityMetadatas.map(function (metadata) { return metadata.target; }).indexOf(column.target) !== -1)
                 return;
-            var value = rawResults[0][_this.buildColumnAlias(alias.name, column.databaseName)];
+            var value = rawResults[0][DriverUtils_1.DriverUtils.buildColumnAlias(_this.driver, alias.name, column.databaseName)];
             if (value === undefined || column.isVirtual)
                 return;
             // if user does not selected the whole entity or he used partial selection and does not select this particular column
@@ -123,7 +135,7 @@ var RawSqlResultsToEntityTransformer = /** @class */ (function () {
         var hasData = false;
         // let discriminatorValue: string = "";
         // if (metadata.discriminatorColumn)
-        //     discriminatorValue = rawResults[0][this.buildColumnAlias(alias.name, alias.metadata.discriminatorColumn!.databaseName)];
+        //     discriminatorValue = rawResults[0][DriverUtils.buildColumnAlias(this.connection.driver, alias.name, alias.metadata.discriminatorColumn!.databaseName)];
         this.expressionMap.joinAttributes.forEach(function (join) {
             // skip joins without metadata
             if (!join.metadata)
@@ -257,7 +269,7 @@ var RawSqlResultsToEntityTransformer = /** @class */ (function () {
             else {
                 referenceColumnName = relation.isOwning ? relation.joinColumns[0].referencedColumn.databaseName : relation.inverseRelation.joinColumns[0].referencedColumn.databaseName;
             }
-            var referenceColumnValue = rawSqlResults[0][_this.buildColumnAlias(alias.name, referenceColumnName)]; // we use zero index since its grouped data // todo: selection with alias for entity columns wont work
+            var referenceColumnValue = rawSqlResults[0][DriverUtils_1.DriverUtils.buildColumnAlias(_this.driver, alias.name, referenceColumnName)]; // we use zero index since its grouped data // todo: selection with alias for entity columns wont work
             if (referenceColumnValue !== undefined && referenceColumnValue !== null) {
                 entity[rawRelationCountResult.relationCountAttribute.mapToPropertyPropertyName] = 0;
                 rawRelationCountResult.results
@@ -269,16 +281,6 @@ var RawSqlResultsToEntityTransformer = /** @class */ (function () {
             }
         });
         return hasData;
-    };
-    /**
-     * Builds column alias from given alias name and column name,
-     * If alias length is more than 29, abbreviates column name.
-     */
-    RawSqlResultsToEntityTransformer.prototype.buildColumnAlias = function (aliasName, columnName) {
-        var columnAliasName = aliasName + "_" + columnName;
-        if (columnAliasName.length > 29 && this.driver instanceof OracleDriver_1.OracleDriver)
-            return aliasName + "_" + StringUtils_1.abbreviate(columnName, 2);
-        return columnAliasName;
     };
     RawSqlResultsToEntityTransformer.prototype.createValueMapFromJoinColumns = function (relation, parentAlias, rawSqlResults) {
         var _this = this;
@@ -300,10 +302,10 @@ var RawSqlResultsToEntityTransformer = /** @class */ (function () {
         return columns.reduce(function (valueMap, column) {
             rawSqlResults.forEach(function (rawSqlResult) {
                 if (relation.isManyToOne || relation.isOneToOneOwner) {
-                    valueMap[column.databaseName] = rawSqlResult[_this.buildColumnAlias(parentAlias, column.databaseName)];
+                    valueMap[column.databaseName] = _this.driver.prepareHydratedValue(rawSqlResult[DriverUtils_1.DriverUtils.buildColumnAlias(_this.driver, parentAlias, column.databaseName)], column);
                 }
                 else {
-                    valueMap[column.databaseName] = rawSqlResult[_this.buildColumnAlias(parentAlias, column.referencedColumn.databaseName)];
+                    valueMap[column.databaseName] = _this.driver.prepareHydratedValue(rawSqlResult[DriverUtils_1.DriverUtils.buildColumnAlias(_this.driver, parentAlias, column.referencedColumn.databaseName)], column);
                 }
             });
             return valueMap;

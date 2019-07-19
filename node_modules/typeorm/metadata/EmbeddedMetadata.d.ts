@@ -7,6 +7,7 @@ import { RelationCountMetadata } from "./RelationCountMetadata";
 import { Connection } from "../connection/Connection";
 import { EntityListenerMetadata } from "./EntityListenerMetadata";
 import { IndexMetadata } from "./IndexMetadata";
+import { UniqueMetadata } from "./UniqueMetadata";
 /**
  * Contains all information about entity's embedded property.
  */
@@ -50,6 +51,10 @@ export declare class EmbeddedMetadata {
      */
     indices: IndexMetadata[];
     /**
+     * Uniques applied to the embed columns.
+     */
+    uniques: UniqueMetadata[];
+    /**
      * Relation ids inside this embed.
      */
     relationIds: RelationIdMetadata[];
@@ -64,7 +69,7 @@ export declare class EmbeddedMetadata {
     /**
      * Indicates if this embedded is in array mode.
      *
-     * This option works only in monogodb.
+     * This option works only in mongodb.
      */
     isArray: boolean;
     /**
@@ -118,6 +123,10 @@ export declare class EmbeddedMetadata {
      */
     indicesFromTree: IndexMetadata[];
     /**
+     * Uniques of this embed and all uniques from its child embeds.
+     */
+    uniquesFromTree: UniqueMetadata[];
+    /**
      * Relation ids of this embed and all relation ids from its child embeds.
      */
     relationIdsFromTree: RelationIdMetadata[];
@@ -143,6 +152,7 @@ export declare class EmbeddedMetadata {
     protected buildRelationsFromTree(): RelationMetadata[];
     protected buildListenersFromTree(): EntityListenerMetadata[];
     protected buildIndicesFromTree(): IndexMetadata[];
+    protected buildUniquesFromTree(): UniqueMetadata[];
     protected buildRelationIdsFromTree(): RelationIdMetadata[];
     protected buildRelationCountsFromTree(): RelationCountMetadata[];
 }

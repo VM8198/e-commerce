@@ -9,6 +9,7 @@ var DateUtils_1 = require("../../util/DateUtils");
 var PlatformTools_1 = require("../../platform/PlatformTools");
 var RdbmsSchemaBuilder_1 = require("../../schema-builder/RdbmsSchemaBuilder");
 var OrmUtils_1 = require("../../util/OrmUtils");
+var ApplyValueTransformers_1 = require("../../util/ApplyValueTransformers");
 /**
  * Organizes communication with MySQL DBMS.
  */
@@ -191,6 +192,12 @@ var MysqlDriver = /** @class */ (function () {
             cacheDuration: "int",
             cacheQuery: "text",
             cacheResult: "text",
+            metadataType: "varchar",
+            metadataDatabase: "varchar",
+            metadataSchema: "varchar",
+            metadataTable: "varchar",
+            metadataName: "varchar",
+            metadataValue: "text",
         };
         /**
          * Default values of length, precision and scale depends on column data type.
@@ -209,6 +216,9 @@ var MysqlDriver = /** @class */ (function () {
             "fixed": { precision: 10, scale: 0 },
             "float": { precision: 12 },
             "double": { precision: 22 },
+            "time": { precision: 0 },
+            "datetime": { precision: 0 },
+            "timestamp": { precision: 0 },
             "bit": { width: 1 },
             "int": { width: 11 },
             "integer": { width: 11 },
@@ -217,6 +227,11 @@ var MysqlDriver = /** @class */ (function () {
             "mediumint": { width: 9 },
             "bigint": { width: 20 }
         };
+        /**
+         * Max length allowed by MySQL for aliases.
+         * @see https://dev.mysql.com/doc/refman/5.5/en/identifiers.html
+         */
+        this.maxAliasLength = 63;
         this.connection = connection;
         this.options = connection.options;
         this.isReplicated = this.options.replication ? true : false;
@@ -358,7 +373,7 @@ var MysqlDriver = /** @class */ (function () {
      */
     MysqlDriver.prototype.preparePersistentValue = function (value, columnMetadata) {
         if (columnMetadata.transformer)
-            value = columnMetadata.transformer.to(value);
+            value = ApplyValueTransformers_1.ApplyValueTransformers.transformTo(columnMetadata.transformer, value);
         if (value === null || value === undefined)
             return value;
         if (columnMetadata.type === Boolean) {
@@ -382,7 +397,7 @@ var MysqlDriver = /** @class */ (function () {
         else if (columnMetadata.type === "simple-json") {
             return DateUtils_1.DateUtils.simpleJsonToString(value);
         }
-        else if (columnMetadata.type === "enum") {
+        else if (columnMetadata.type === "enum" || columnMetadata.type === "simple-enum") {
             return "" + value;
         }
         return value;
@@ -392,7 +407,7 @@ var MysqlDriver = /** @class */ (function () {
      */
     MysqlDriver.prototype.prepareHydratedValue = function (value, columnMetadata) {
         if (value === null || value === undefined)
-            return columnMetadata.transformer ? columnMetadata.transformer.from(value) : value;
+            return columnMetadata.transformer ? ApplyValueTransformers_1.ApplyValueTransformers.transformFrom(columnMetadata.transformer, value) : value;
         if (columnMetadata.type === Boolean || columnMetadata.type === "bool" || columnMetadata.type === "boolean") {
             value = value ? true : false;
         }
@@ -414,15 +429,15 @@ var MysqlDriver = /** @class */ (function () {
         else if (columnMetadata.type === "simple-json") {
             value = DateUtils_1.DateUtils.stringToSimpleJson(value);
         }
-        else if (columnMetadata.type === "enum"
+        else if ((columnMetadata.type === "enum" || columnMetadata.type === "simple-enum")
             && columnMetadata.enum
             && !isNaN(value)
             && columnMetadata.enum.indexOf(parseInt(value)) >= 0) {
-            // convert to number if that exists in poosible enum options
+            // convert to number if that exists in possible enum options
             value = parseInt(value);
         }
         if (columnMetadata.transformer)
-            value = columnMetadata.transformer.from(value);
+            value = ApplyValueTransformers_1.ApplyValueTransformers.transformFrom(columnMetadata.transformer, value);
         return value;
     };
     /**
@@ -450,6 +465,9 @@ var MysqlDriver = /** @class */ (function () {
         else if (column.type === "simple-array" || column.type === "simple-json") {
             return "text";
         }
+        else if (column.type === "simple-enum") {
+            return "enum";
+        }
         else if (column.type === "double precision" || column.type === "real") {
             return "double";
         }
@@ -474,7 +492,7 @@ var MysqlDriver = /** @class */ (function () {
      */
     MysqlDriver.prototype.normalizeDefault = function (columnMetadata) {
         var defaultValue = columnMetadata.default;
-        if (columnMetadata.type === "enum" && defaultValue !== undefined) {
+        if ((columnMetadata.type === "enum" || columnMetadata.type === "simple-enum") && defaultValue !== undefined) {
             return "'" + defaultValue + "'";
         }
         if (typeof defaultValue === "number") {
@@ -624,6 +642,7 @@ var MysqlDriver = /** @class */ (function () {
             // console.log("generatedType:", tableColumn.generatedType, columnMetadata.generatedType);
             // console.log("comment:", tableColumn.comment, columnMetadata.comment);
             // console.log("default:", tableColumn.default, columnMetadata.default);
+            // console.log("enum:", tableColumn.enum, columnMetadata.enum);
             // console.log("default changed:", !this.compareDefaultValues(this.normalizeDefault(columnMetadata), tableColumn.default));
             // console.log("onUpdate:", tableColumn.onUpdate, columnMetadata.onUpdate);
             // console.log("isPrimary:", tableColumn.isPrimary, columnMetadata.isPrimary);
@@ -648,6 +667,7 @@ var MysqlDriver = /** @class */ (function () {
                 || tableColumn.generatedType !== columnMetadata.generatedType
                 // || tableColumn.comment !== columnMetadata.comment // todo
                 || !_this.compareDefaultValues(_this.normalizeDefault(columnMetadata), tableColumn.default)
+                || (tableColumn.enum && columnMetadata.enum && !OrmUtils_1.OrmUtils.isArraysEqual(tableColumn.enum, columnMetadata.enum.map(function (val) { return val + ""; })))
                 || tableColumn.onUpdate !== columnMetadata.onUpdate
                 || tableColumn.isPrimary !== columnMetadata.isPrimary
                 || tableColumn.isNullable !== columnMetadata.isNullable
@@ -711,7 +731,6 @@ var MysqlDriver = /** @class */ (function () {
         return Object.assign({}, {
             charset: options.charset,
             timezone: options.timezone,
-            acquireTimeout: options.acquireTimeout,
             connectTimeout: options.connectTimeout,
             insecureAuth: options.insecureAuth,
             supportBigNumbers: options.supportBigNumbers !== undefined ? options.supportBigNumbers : true,
@@ -728,7 +747,9 @@ var MysqlDriver = /** @class */ (function () {
             database: credentials.database,
             port: credentials.port,
             ssl: options.ssl
-        }, options.extra || {});
+        }, options.acquireTimeout === undefined
+            ? {}
+            : { acquireTimeout: options.acquireTimeout }, options.extra || {});
     };
     /**
      * Creates a new connection pool for a given database credentials.

@@ -7,6 +7,7 @@ import { DateUtils } from "../../util/DateUtils";
 import { PlatformTools } from "../../platform/PlatformTools";
 import { RdbmsSchemaBuilder } from "../../schema-builder/RdbmsSchemaBuilder";
 import { OrmUtils } from "../../util/OrmUtils";
+import { ApplyValueTransformers } from "../../util/ApplyValueTransformers";
 /**
  * Organizes communication with PostgreSQL DBMS.
  */
@@ -161,6 +162,12 @@ var PostgresDriver = /** @class */ (function () {
             cacheDuration: "int4",
             cacheQuery: "text",
             cacheResult: "text",
+            metadataType: "varchar",
+            metadataDatabase: "varchar",
+            metadataSchema: "varchar",
+            metadataTable: "varchar",
+            metadataName: "varchar",
+            metadataValue: "text",
         };
         /**
          * Default values of length, precision and scale depends on column data type.
@@ -175,6 +182,11 @@ var PostgresDriver = /** @class */ (function () {
             "timestamp without time zone": { precision: 6 },
             "timestamp with time zone": { precision: 6 },
         };
+        /**
+         * Max length allowed by Postgres for aliases.
+         * @see https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERS
+         */
+        this.maxAliasLength = 63;
         this.connection = connection;
         this.options = connection.options;
         this.isReplicated = this.options.replication ? true : false;
@@ -270,13 +282,13 @@ var PostgresDriver = /** @class */ (function () {
                                                     _a.label = 1;
                                                 case 1:
                                                     _a.trys.push([1, 3, , 4]);
-                                                    return [4 /*yield*/, this.executeQuery(connection, "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"")];
+                                                    return [4 /*yield*/, this.executeQuery(connection, "CREATE EXTENSION IF NOT EXISTS \"" + (this.options.uuidExtension || "uuid-ossp") + "\"")];
                                                 case 2:
                                                     _a.sent();
                                                     return [3 /*break*/, 4];
                                                 case 3:
                                                     _1 = _a.sent();
-                                                    logger.log("warn", "At least one of the entities has uuid column, but the 'uuid-ossp' extension cannot be installed automatically. Please install it manually using superuser rights");
+                                                    logger.log("warn", "At least one of the entities has uuid column, but the '" + (this.options.uuidExtension || "uuid-ossp") + "' extension cannot be installed automatically. Please install it manually using superuser rights, or select another uuid extension.");
                                                     return [3 /*break*/, 4];
                                                 case 4:
                                                     if (!hasCitextColumns) return [3 /*break*/, 8];
@@ -391,7 +403,7 @@ var PostgresDriver = /** @class */ (function () {
      */
     PostgresDriver.prototype.preparePersistentValue = function (value, columnMetadata) {
         if (columnMetadata.transformer)
-            value = columnMetadata.transformer.to(value);
+            value = ApplyValueTransformers.transformTo(columnMetadata.transformer, value);
         if (value === null || value === undefined)
             return value;
         if (columnMetadata.type === Boolean) {
@@ -429,7 +441,9 @@ var PostgresDriver = /** @class */ (function () {
         else if (columnMetadata.type === "simple-json") {
             return DateUtils.simpleJsonToString(value);
         }
-        else if (columnMetadata.type === "enum" && !columnMetadata.isArray) {
+        else if ((columnMetadata.type === "enum"
+            || columnMetadata.type === "simple-enum")
+            && !columnMetadata.isArray) {
             return "" + value;
         }
         return value;
@@ -439,7 +453,7 @@ var PostgresDriver = /** @class */ (function () {
      */
     PostgresDriver.prototype.prepareHydratedValue = function (value, columnMetadata) {
         if (value === null || value === undefined)
-            return columnMetadata.transformer ? columnMetadata.transformer.from(value) : value;
+            return columnMetadata.transformer ? ApplyValueTransformers.transformFrom(columnMetadata.transformer, value) : value;
         if (columnMetadata.type === Boolean) {
             value = value ? true : false;
         }
@@ -477,7 +491,7 @@ var PostgresDriver = /** @class */ (function () {
         else if (columnMetadata.type === "simple-json") {
             value = DateUtils.stringToSimpleJson(value);
         }
-        else if (columnMetadata.type === "enum") {
+        else if (columnMetadata.type === "enum" || columnMetadata.type === "simple-enum") {
             if (columnMetadata.isArray) {
                 // manually convert enum array to array of values (pg does not support, see https://github.com/brianc/node-pg-types/issues/56)
                 value = value !== "{}" ? value.substr(1, value.length - 2).split(",") : [];
@@ -492,7 +506,7 @@ var PostgresDriver = /** @class */ (function () {
             }
         }
         if (columnMetadata.transformer)
-            value = columnMetadata.transformer.from(value);
+            value = ApplyValueTransformers.transformFrom(columnMetadata.transformer, value);
         return value;
     };
     /**
@@ -574,6 +588,9 @@ var PostgresDriver = /** @class */ (function () {
         else if (column.type === "simple-json") {
             return "text";
         }
+        else if (column.type === "simple-enum") {
+            return "enum";
+        }
         else if (column.type === "int2") {
             return "smallint";
         }
@@ -605,7 +622,8 @@ var PostgresDriver = /** @class */ (function () {
     PostgresDriver.prototype.normalizeDefault = function (columnMetadata) {
         var defaultValue = columnMetadata.default;
         var arrayCast = columnMetadata.isArray ? "::" + columnMetadata.type + "[]" : "";
-        if (columnMetadata.type === "enum" && defaultValue !== undefined) {
+        if ((columnMetadata.type === "enum"
+            || columnMetadata.type === "simple-enum") && defaultValue !== undefined) {
             if (columnMetadata.isArray && Array.isArray(defaultValue)) {
                 return "'{" + defaultValue.map(function (val) { return "" + val; }).join(",") + "}'";
             }
@@ -727,6 +745,7 @@ var PostgresDriver = /** @class */ (function () {
             var column = metadata.findColumnWithDatabaseName(key);
             if (column) {
                 OrmUtils.mergeDeep(map, column.createValueMap(insertResult[key]));
+                // OrmUtils.mergeDeep(map, column.createValueMap(this.prepareHydratedValue(insertResult[key], column))); // TODO: probably should be like there, but fails on enums, fix later
             }
             return map;
         }, {});
@@ -747,17 +766,17 @@ var PostgresDriver = /** @class */ (function () {
                 || tableColumn.precision !== columnMetadata.precision
                 || tableColumn.scale !== columnMetadata.scale
                 // || tableColumn.comment !== columnMetadata.comment // todo
-                || (!tableColumn.isGenerated && _this.lowerDefaultValueIfNessesary(_this.normalizeDefault(columnMetadata)) !== tableColumn.default) // we included check for generated here, because generated columns already can have default values
+                || (!tableColumn.isGenerated && _this.lowerDefaultValueIfNecessary(_this.normalizeDefault(columnMetadata)) !== tableColumn.default) // we included check for generated here, because generated columns already can have default values
                 || tableColumn.isPrimary !== columnMetadata.isPrimary
                 || tableColumn.isNullable !== columnMetadata.isNullable
                 || tableColumn.isUnique !== _this.normalizeIsUnique(columnMetadata)
-                || (tableColumn.enum && columnMetadata.enum && !OrmUtils.isArraysEqual(tableColumn.enum, columnMetadata.enum))
+                || (tableColumn.enum && columnMetadata.enum && !OrmUtils.isArraysEqual(tableColumn.enum, columnMetadata.enum.map(function (val) { return val + ""; }))) // enums in postgres are always strings
                 || tableColumn.isGenerated !== columnMetadata.isGenerated
                 || (tableColumn.spatialFeatureType || "").toLowerCase() !== (columnMetadata.spatialFeatureType || "").toLowerCase()
                 || tableColumn.srid !== columnMetadata.srid;
         });
     };
-    PostgresDriver.prototype.lowerDefaultValueIfNessesary = function (value) {
+    PostgresDriver.prototype.lowerDefaultValueIfNecessary = function (value) {
         // Postgres saves function calls in default value as lowercase #2733
         if (!value) {
             return value;
@@ -778,6 +797,13 @@ var PostgresDriver = /** @class */ (function () {
     PostgresDriver.prototype.isUUIDGenerationSupported = function () {
         return true;
     };
+    Object.defineProperty(PostgresDriver.prototype, "uuidGenerator", {
+        get: function () {
+            return this.options.uuidExtension === "pgcrypto" ? "gen_random_uuid()" : "uuid_generate_v4()";
+        },
+        enumerable: true,
+        configurable: true
+    });
     /**
      * Creates an escaped parameter.
      */

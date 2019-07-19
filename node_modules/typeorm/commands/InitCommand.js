@@ -154,6 +154,16 @@ var InitCommand = /** @class */ (function () {
                     "database": "test",
                 });
                 break;
+            case "cockroachdb":
+                Object.assign(options, {
+                    "type": "cockroachdb",
+                    "host": "localhost",
+                    "port": 26257,
+                    "username": "root",
+                    "password": "",
+                    "database": "defaultdb",
+                });
+                break;
             case "mssql":
                 Object.assign(options, {
                     "type": "mssql",
@@ -276,6 +286,8 @@ var InitCommand = /** @class */ (function () {
                 return "version: '3'\nservices:\n\n  mariadb:\n    image: \"mariadb:10.1.16\"\n    ports:\n      - \"3306:3306\"\n    environment:\n      MYSQL_ROOT_PASSWORD: \"admin\"\n      MYSQL_USER: \"test\"\n      MYSQL_PASSWORD: \"test\"\n      MYSQL_DATABASE: \"test\"\n\n";
             case "postgres":
                 return "version: '3'\nservices:\n\n  postgres:\n    image: \"postgres:9.6.1\"\n    ports:\n      - \"5432:5432\"\n    environment:\n      POSTGRES_USER: \"test\"\n      POSTGRES_PASSWORD: \"test\"\n      POSTGRES_DB: \"test\"\n\n";
+            case "cockroachdb":
+                return "version: '3'\nservices:\n\n  cockroachdb:\n    image: \"cockroachdb/cockroach:v2.1.4\"\n    command: start --insecure\n    ports:\n      - \"26257:26257\"\n\n";
             case "sqlite":
                 return "version: '3'\nservices:\n";
             case "oracle":
@@ -283,7 +295,7 @@ var InitCommand = /** @class */ (function () {
             case "mssql":
                 return "version: '3'\nservices:\n\n  mssql:\n    image: \"microsoft/mssql-server-linux:rc2\"\n    ports:\n      - \"1433:1433\"\n    environment:\n      SA_PASSWORD: \"Admin12345\"\n      ACCEPT_EULA: \"Y\"\n\n";
             case "mongodb":
-                return "version: '3'\nservices:\n\n  mongodb:\n    image: \"mongo:3.4.1\"\n    container_name: \"typeorm-mongodb\"\n    ports:\n      - \"27017:27017\"\n\n";
+                return "version: '3'\nservices:\n\n  mongodb:\n    image: \"mongo:4.0.6\"\n    container_name: \"typeorm-mongodb\"\n    ports:\n      - \"27017:27017\"\n\n";
         }
         return "";
     };
@@ -311,7 +323,7 @@ var InitCommand = /** @class */ (function () {
         Object.assign(packageJson.devDependencies, {
             "ts-node": "3.3.0",
             "@types/node": "^8.0.29",
-            "typescript": "2.5.2"
+            "typescript": "3.3.3333"
         });
         if (!packageJson.dependencies)
             packageJson.dependencies = {};
@@ -325,6 +337,7 @@ var InitCommand = /** @class */ (function () {
                 packageJson.dependencies["mysql"] = "^2.14.1";
                 break;
             case "postgres":
+            case "cockroachdb":
                 packageJson.dependencies["pg"] = "^7.3.0";
                 break;
             case "sqlite":

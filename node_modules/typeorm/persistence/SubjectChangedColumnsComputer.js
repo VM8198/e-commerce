@@ -40,6 +40,10 @@ var SubjectChangedColumnsComputer = /** @class */ (function () {
                 column.isVersion ||
                 column.isCreateDate)
                 return;
+            var changeMap = subject.changeMaps.find(function (changeMap) { return changeMap.column === column; });
+            if (changeMap) {
+                subject.changeMaps.splice(subject.changeMaps.indexOf(changeMap), 1);
+            }
             // get user provided value - column value from the user provided persisted entity
             var entityValue = column.getEntityValue(subject.entity);
             // we don't perform operation over undefined properties (but we DO need null properties!)
@@ -79,23 +83,20 @@ var SubjectChangedColumnsComputer = /** @class */ (function () {
                         normalizedValue = DateUtils_1.DateUtils.simpleArrayToString(entityValue);
                         databaseValue = DateUtils_1.DateUtils.simpleArrayToString(databaseValue);
                     }
+                    else if (column.type === "simple-enum") {
+                        normalizedValue = DateUtils_1.DateUtils.simpleEnumToString(entityValue);
+                        databaseValue = DateUtils_1.DateUtils.simpleEnumToString(databaseValue);
+                    }
                 }
                 // if value is not changed - then do nothing
                 if (normalizedValue === databaseValue)
                     return;
             }
             subject.diffColumns.push(column);
-            // find if there is already a column to be changed
-            var changeMap = subject.changeMaps.find(function (changeMap) { return changeMap.column === column; });
-            if (changeMap) { // and update its value if it was found
-                changeMap.value = entityValue;
-            }
-            else { // if it wasn't found add a new column for change
-                subject.changeMaps.push({
-                    column: column,
-                    value: entityValue
-                });
-            }
+            subject.changeMaps.push({
+                column: column,
+                value: entityValue
+            });
         });
     };
     /**

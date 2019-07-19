@@ -46,7 +46,7 @@ function PrimaryColumn(typeOrOptions, options) {
             __1.getMetadataArgsStorage().generations.push({
                 target: object.constructor,
                 propertyName: propertyName,
-                strategy: options.type === "uuid" ? "uuid" : "increment"
+                strategy: typeof options.generated === "string" ? options.generated : "increment"
             });
         }
     };

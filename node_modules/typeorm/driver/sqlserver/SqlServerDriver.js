@@ -10,6 +10,7 @@ var PlatformTools_1 = require("../../platform/PlatformTools");
 var RdbmsSchemaBuilder_1 = require("../../schema-builder/RdbmsSchemaBuilder");
 var MssqlParameter_1 = require("./MssqlParameter");
 var OrmUtils_1 = require("../../util/OrmUtils");
+var ApplyValueTransformers_1 = require("../../util/ApplyValueTransformers");
 /**
  * Organizes communication with SQL Server DBMS.
  */
@@ -127,6 +128,12 @@ var SqlServerDriver = /** @class */ (function () {
             cacheDuration: "int",
             cacheQuery: "nvarchar(MAX)",
             cacheResult: "nvarchar(MAX)",
+            metadataType: "varchar",
+            metadataDatabase: "varchar",
+            metadataSchema: "varchar",
+            metadataTable: "varchar",
+            metadataName: "varchar",
+            metadataValue: "nvarchar(MAX)",
         };
         /**
          * Default values of length, precision and scale depends on column data type.
@@ -145,6 +152,11 @@ var SqlServerDriver = /** @class */ (function () {
             "datetime2": { precision: 7 },
             "datetimeoffset": { precision: 7 }
         };
+        /**
+         * Max length allowed by MSSQL Server for aliases (identifiers).
+         * @see https://docs.microsoft.com/en-us/sql/sql-server/maximum-capacity-specifications-for-sql-server
+         */
+        this.maxAliasLength = 128;
         this.connection = connection;
         this.options = connection.options;
         this.isReplicated = this.options.replication ? true : false;
@@ -318,7 +330,7 @@ var SqlServerDriver = /** @class */ (function () {
      */
     SqlServerDriver.prototype.preparePersistentValue = function (value, columnMetadata) {
         if (columnMetadata.transformer)
-            value = columnMetadata.transformer.to(value);
+            value = ApplyValueTransformers_1.ApplyValueTransformers.transformTo(columnMetadata.transformer, value);
         if (value === null || value === undefined)
             return value;
         if (columnMetadata.type === Boolean) {
@@ -345,6 +357,9 @@ var SqlServerDriver = /** @class */ (function () {
         else if (columnMetadata.type === "simple-json") {
             return DateUtils_1.DateUtils.simpleJsonToString(value);
         }
+        else if (columnMetadata.type === "simple-enum") {
+            return DateUtils_1.DateUtils.simpleEnumToString(value);
+        }
         return value;
     };
     /**
@@ -352,7 +367,7 @@ var SqlServerDriver = /** @class */ (function () {
      */
     SqlServerDriver.prototype.prepareHydratedValue = function (value, columnMetadata) {
         if (value === null || value === undefined)
-            return columnMetadata.transformer ? columnMetadata.transformer.from(value) : value;
+            return columnMetadata.transformer ? ApplyValueTransformers_1.ApplyValueTransformers.transformFrom(columnMetadata.transformer, value) : value;
         if (columnMetadata.type === Boolean) {
             value = value ? true : false;
         }
@@ -375,8 +390,11 @@ var SqlServerDriver = /** @class */ (function () {
         else if (columnMetadata.type === "simple-json") {
             value = DateUtils_1.DateUtils.stringToSimpleJson(value);
         }
+        else if (columnMetadata.type === "simple-enum") {
+            value = DateUtils_1.DateUtils.stringToSimpleEnum(value, columnMetadata);
+        }
         if (columnMetadata.transformer)
-            value = columnMetadata.transformer.from(value);
+            value = ApplyValueTransformers_1.ApplyValueTransformers.transformFrom(columnMetadata.transformer, value);
         return value;
     };
     /**
@@ -403,6 +421,9 @@ var SqlServerDriver = /** @class */ (function () {
         }
         else if (column.type === "simple-array" || column.type === "simple-json") {
             return "ntext";
+        }
+        else if (column.type === "simple-enum") {
+            return "nvarchar";
         }
         else if (column.type === "dec") {
             return "decimal";
@@ -496,12 +517,13 @@ var SqlServerDriver = /** @class */ (function () {
      * Creates generated map of values generated or returned by database after INSERT query.
      */
     SqlServerDriver.prototype.createGeneratedMap = function (metadata, insertResult) {
+        var _this = this;
         if (!insertResult)
             return undefined;
         return Object.keys(insertResult).reduce(function (map, key) {
             var column = metadata.findColumnWithDatabaseName(key);
             if (column) {
-                OrmUtils_1.OrmUtils.mergeDeep(map, column.createValueMap(insertResult[key]));
+                OrmUtils_1.OrmUtils.mergeDeep(map, column.createValueMap(_this.prepareHydratedValue(insertResult[key], column)));
             }
             return map;
         }, {});

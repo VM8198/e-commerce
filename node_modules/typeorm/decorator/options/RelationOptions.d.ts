@@ -1,3 +1,4 @@
+import { DeferrableType } from "../../metadata/types/DeferrableType";
 import { OnDeleteType } from "../../metadata/types/OnDeleteType";
 import { OnUpdateType } from "../../metadata/types/OnUpdateType";
 /**
@@ -24,6 +25,10 @@ export interface RelationOptions {
      * Database cascade action on update.
      */
     onUpdate?: OnUpdateType;
+    /**
+     * Indicate if foreign key constraints can be deferred.
+     */
+    deferrable?: DeferrableType;
     /**
      * Indicates if this relation will be a primary key.
      * Can be used only for many-to-one and owner one-to-one relations.

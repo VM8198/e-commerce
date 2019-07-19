@@ -5,7 +5,17 @@ import * as yargs from "yargs";
 export declare class InitCommand implements yargs.CommandModule {
     command: string;
     describe: string;
-    builder(args: yargs.Argv): yargs.Argv;
+    builder(args: yargs.Argv): yargs.Argv<{
+        c: string;
+    } & {
+        n: unknown;
+    } & {
+        db: unknown;
+    } & {
+        express: unknown;
+    } & {
+        docker: unknown;
+    }>;
     handler(args: yargs.Arguments): Promise<void>;
     /**
      * Gets contents of the ormconfig file.

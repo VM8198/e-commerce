@@ -1,8 +1,9 @@
 import * as tslib_1 from "tslib";
-import { OrmUtils } from "../util/OrmUtils";
 import { PostgresDriver } from "../driver/postgres/PostgresDriver";
 import { SqlServerDriver } from "../driver/sqlserver/SqlServerDriver";
 import { CannotCreateEntityIdMapError } from "../error/CannotCreateEntityIdMapError";
+import { OrmUtils } from "../util/OrmUtils";
+import { shorten } from "../util/StringUtils";
 /**
  * Contains all entity metadata.
  */
@@ -168,6 +169,10 @@ var EntityMetadata = /** @class */ (function () {
          */
         this.uniques = [];
         /**
+         * Entity's own uniques.
+         */
+        this.ownUniques = [];
+        /**
          * Entity's check metadatas.
          */
         this.checks = [];
@@ -219,6 +224,7 @@ var EntityMetadata = /** @class */ (function () {
         this.tableMetadataArgs = options.args;
         this.target = this.tableMetadataArgs.target;
         this.tableType = this.tableMetadataArgs.type;
+        this.expression = this.tableMetadataArgs.expression;
     }
     // -------------------------------------------------------------------------
     // Public Methods
@@ -456,7 +462,15 @@ var EntityMetadata = /** @class */ (function () {
         var entityPrefix = this.connection.options.entityPrefix;
         this.engine = this.tableMetadataArgs.engine;
         this.database = this.tableMetadataArgs.type === "entity-child" && this.parentEntityMetadata ? this.parentEntityMetadata.database : this.tableMetadataArgs.database;
-        this.schema = this.tableMetadataArgs.schema || this.connection.options.schema;
+        if (this.tableMetadataArgs.schema) {
+            this.schema = this.tableMetadataArgs.schema;
+        }
+        else if ((this.tableMetadataArgs.type === "entity-child") && this.parentEntityMetadata) {
+            this.schema = this.parentEntityMetadata.schema;
+        }
+        else {
+            this.schema = this.connection.options.schema;
+        }
         this.givenTableName = this.tableMetadataArgs.type === "entity-child" && this.parentEntityMetadata ? this.parentEntityMetadata.givenTableName : this.tableMetadataArgs.name;
         this.synchronize = this.tableMetadataArgs.synchronize === false ? false : true;
         this.targetName = this.tableMetadataArgs.target instanceof Function ? this.tableMetadataArgs.target.name : this.tableMetadataArgs.target;
@@ -468,10 +482,14 @@ var EntityMetadata = /** @class */ (function () {
         }
         else {
             this.tableNameWithoutPrefix = namingStrategy.tableName(this.targetName, this.givenTableName);
+            if (this.connection.driver.maxAliasLength && this.connection.driver.maxAliasLength > 0 && this.tableNameWithoutPrefix.length > this.connection.driver.maxAliasLength) {
+                this.tableNameWithoutPrefix = shorten(this.tableNameWithoutPrefix, { separator: "_", segmentLength: 3 });
+            }
         }
         this.tableName = entityPrefix ? namingStrategy.prefixTableName(entityPrefix, this.tableNameWithoutPrefix) : this.tableNameWithoutPrefix;
         this.target = this.target ? this.target : this.tableName;
         this.name = this.targetName ? this.targetName : this.tableName;
+        this.expression = this.tableMetadataArgs.expression;
         this.tablePath = this.buildTablePath();
         this.schemaPath = this.buildSchemaPath();
         this.orderBy = (this.tableMetadataArgs.orderBy instanceof Function) ? this.tableMetadataArgs.orderBy(this.propertiesMap) : this.tableMetadataArgs.orderBy; // todo: is propertiesMap available here? Looks like its not

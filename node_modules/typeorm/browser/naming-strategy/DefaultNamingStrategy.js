@@ -124,6 +124,9 @@ var DefaultNamingStrategy = /** @class */ (function () {
     DefaultNamingStrategy.prototype.prefixTableName = function (prefix, tableName) {
         return prefix + tableName;
     };
+    DefaultNamingStrategy.prototype.eagerJoinRelationAlias = function (alias, propertyPath) {
+        return alias + "_" + propertyPath.replace(".", "_");
+    };
     return DefaultNamingStrategy;
 }());
 export { DefaultNamingStrategy };

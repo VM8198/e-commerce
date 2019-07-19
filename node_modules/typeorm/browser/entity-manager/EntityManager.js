@@ -46,6 +46,10 @@ var EntityManager = /** @class */ (function () {
             ObjectUtils.assign(this.queryRunner, { manager: this });
         }
     }
+    /**
+     * Wraps given function execution (and all operations made there) in a transaction.
+     * All database operations must be executed using provided entity manager.
+     */
     EntityManager.prototype.transaction = function (isolationOrRunInTransaction, runInTransactionParam) {
         return tslib_1.__awaiter(this, void 0, void 0, function () {
             var isolation, runInTransaction, queryRunner, result, err_1, rollbackError_1;
@@ -240,7 +244,7 @@ var EntityManager = /** @class */ (function () {
      * Does not check if entity exist in the database, so query will fail if duplicate entity is being inserted.
      * You can execute bulk inserts using this method.
      */
-    EntityManager.prototype.insert = function (target, entity, options) {
+    EntityManager.prototype.insert = function (target, entity) {
         return tslib_1.__awaiter(this, void 0, void 0, function () {
             var results;
             var _this = this;
@@ -268,7 +272,7 @@ var EntityManager = /** @class */ (function () {
      * Does not check if entity exist in the database.
      * Condition(s) cannot be empty.
      */
-    EntityManager.prototype.update = function (target, criteria, partialEntity, options) {
+    EntityManager.prototype.update = function (target, criteria, partialEntity) {
         // if user passed empty criteria or empty list of criterias, then throw an error
         if (criteria === undefined ||
             criteria === null ||
@@ -301,7 +305,7 @@ var EntityManager = /** @class */ (function () {
      * Does not check if entity exist in the database.
      * Condition(s) cannot be empty.
      */
-    EntityManager.prototype.delete = function (targetOrEntity, criteria, options) {
+    EntityManager.prototype.delete = function (targetOrEntity, criteria) {
         // if user passed empty criteria or empty list of criterias, then throw an error
         if (criteria === undefined ||
             criteria === null ||

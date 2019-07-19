@@ -41,7 +41,11 @@ var NestedSetSubjectExecutor = /** @class */ (function () {
                                 .from(subject.metadata.target, subject.metadata.targetName)
                                 .whereInIds(parentId)
                                 .getRawOne()
-                                .then(function (result) { return result ? result["right"] : undefined; })];
+                                .then(function (result) {
+                                var value = result ? result["right"] : undefined;
+                                // CockroachDB returns numeric types as string
+                                return typeof value === "string" ? parseInt(value) : value;
+                            })];
                     case 1:
                         parentNsRight = _a.sent();
                         _a.label = 2;

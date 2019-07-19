@@ -25,6 +25,10 @@ var EmbeddedMetadata = /** @class */ (function () {
          */
         this.indices = [];
         /**
+         * Uniques applied to the embed columns.
+         */
+        this.uniques = [];
+        /**
          * Relation ids inside this embed.
          */
         this.relationIds = [];
@@ -39,7 +43,7 @@ var EmbeddedMetadata = /** @class */ (function () {
         /**
          * Indicates if this embedded is in array mode.
          *
-         * This option works only in monogodb.
+         * This option works only in mongodb.
          */
         this.isArray = false;
         /**
@@ -81,6 +85,10 @@ var EmbeddedMetadata = /** @class */ (function () {
          */
         this.indicesFromTree = [];
         /**
+         * Uniques of this embed and all uniques from its child embeds.
+         */
+        this.uniquesFromTree = [];
+        /**
          * Relation ids of this embed and all relation ids from its child embeds.
          */
         this.relationIdsFromTree = [];
@@ -117,6 +125,7 @@ var EmbeddedMetadata = /** @class */ (function () {
         this.relationsFromTree = this.buildRelationsFromTree();
         this.listenersFromTree = this.buildListenersFromTree();
         this.indicesFromTree = this.buildIndicesFromTree();
+        this.uniquesFromTree = this.buildUniquesFromTree();
         this.relationIdsFromTree = this.buildRelationIdsFromTree();
         this.relationCountsFromTree = this.buildRelationCountsFromTree();
         return this;
@@ -168,6 +177,9 @@ var EmbeddedMetadata = /** @class */ (function () {
     };
     EmbeddedMetadata.prototype.buildIndicesFromTree = function () {
         return this.embeddeds.reduce(function (relations, embedded) { return relations.concat(embedded.buildIndicesFromTree()); }, this.indices);
+    };
+    EmbeddedMetadata.prototype.buildUniquesFromTree = function () {
+        return this.embeddeds.reduce(function (relations, embedded) { return relations.concat(embedded.buildUniquesFromTree()); }, this.uniques);
     };
     EmbeddedMetadata.prototype.buildRelationIdsFromTree = function () {
         return this.embeddeds.reduce(function (relations, embedded) { return relations.concat(embedded.buildRelationIdsFromTree()); }, this.relationIds);

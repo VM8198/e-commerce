@@ -39,6 +39,10 @@ export declare class RdbmsSchemaBuilder implements SchemaBuilder {
      */
     protected readonly entityToSyncMetadatas: EntityMetadata[];
     /**
+     * Returns only entities that should be synced in the database.
+     */
+    protected readonly viewEntityToSyncMetadatas: EntityMetadata[];
+    /**
      * Executes schema sync operations in a proper order.
      * Order of operations matter here.
      */
@@ -67,6 +71,8 @@ export declare class RdbmsSchemaBuilder implements SchemaBuilder {
      * Primary key only can be created in conclusion with auto generated column.
      */
     protected createNewTables(): Promise<void>;
+    protected createViews(): Promise<void>;
+    protected dropOldViews(): Promise<void>;
     /**
      * Drops all columns that exist in the table, but does not exist in the metadata (left old).
      * We drop their keys too, since it should be safe.
@@ -119,4 +125,8 @@ export declare class RdbmsSchemaBuilder implements SchemaBuilder {
      * Creates new columns from the given column metadatas.
      */
     protected metadataColumnsToTableColumnOptions(columns: ColumnMetadata[]): TableColumnOptions[];
+    /**
+     * Creates typeorm service table for storing user defined Views.
+     */
+    protected createTypeormMetadataTable(): Promise<void>;
 }

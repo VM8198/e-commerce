@@ -8,6 +8,7 @@ import { EntityManager } from "../entity-manager/EntityManager";
 import { ObjectLiteral } from "../common/ObjectLiteral";
 import { SqlInMemory } from "../driver/SqlInMemory";
 import { TableUnique } from "../schema-builder/table/TableUnique";
+import { View } from "../schema-builder/view/View";
 import { Broadcaster } from "../subscriber/Broadcaster";
 import { TableCheck } from "../schema-builder/table/TableCheck";
 import { IsolationLevel } from "../driver/types/IsolationLevel";
@@ -46,6 +47,10 @@ export interface QueryRunner {
      * All synchronized tables in the database.
      */
     loadedTables: Table[];
+    /**
+     * All synchronized views in the database.
+     */
+    loadedViews: View[];
     /**
      * Creates/uses database connection from the connection pool to perform further operations.
      * Returns obtained database connection.
@@ -97,13 +102,21 @@ export interface QueryRunner {
     /**
      * Loads a table by a given name from the database.
      */
-    getTable(tableName: string): Promise<Table | undefined>;
+    getTable(tablePath: string): Promise<Table | undefined>;
     /**
      * Loads all tables from the database and returns them.
      *
-     * todo: make tableNames optional
+     * todo: make tablePaths optional
      */
-    getTables(tableNames: string[]): Promise<Table[]>;
+    getTables(tablePaths: string[]): Promise<Table[]>;
+    /**
+     * Loads a view by a given name from the database.
+     */
+    getView(viewPath: string): Promise<View | undefined>;
+    /**
+     * Loads all views from the database and returns them.
+     */
+    getViews(viewPaths: string[]): Promise<View[]>;
     /**
      * Checks if a database with the given name exist.
      */
@@ -146,6 +159,14 @@ export interface QueryRunner {
      * Drops a table.
      */
     dropTable(table: Table | string, ifExist?: boolean, dropForeignKeys?: boolean, dropIndices?: boolean): Promise<void>;
+    /**
+     * Creates a new view.
+     */
+    createView(view: View, oldView?: View): Promise<void>;
+    /**
+     * Drops a view.
+     */
+    dropView(view: View | string): Promise<void>;
     /**
      * Renames a table.
      */

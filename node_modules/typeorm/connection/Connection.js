@@ -35,10 +35,6 @@ var Connection = /** @class */ (function () {
     // -------------------------------------------------------------------------
     function Connection(options) {
         /**
-         * Indicates if connection is initialized or not.
-         */
-        this.isConnected = false;
-        /**
          * Migration instances that are registered for this connection.
          */
         this.migrations = [];
@@ -59,6 +55,7 @@ var Connection = /** @class */ (function () {
         this.queryResultCache = options.cache ? new QueryResultCacheFactory_1.QueryResultCacheFactory(this).create() : undefined;
         this.relationLoader = new RelationLoader_1.RelationLoader(this);
         this.relationIdLoader = new RelationIdLoader_1.RelationIdLoader(this);
+        this.isConnected = false;
     }
     Object.defineProperty(Connection.prototype, "mongoManager", {
         // -------------------------------------------------------------------------
@@ -233,24 +230,29 @@ var Connection = /** @class */ (function () {
                     case 0: return [4 /*yield*/, this.createQueryRunner("master")];
                     case 1:
                         queryRunner = _a.sent();
-                        if (!(this.driver instanceof SqlServerDriver_1.SqlServerDriver || this.driver instanceof MysqlDriver_1.MysqlDriver)) return [3 /*break*/, 3];
+                        _a.label = 2;
+                    case 2:
+                        _a.trys.push([2, , 7, 9]);
+                        if (!(this.driver instanceof SqlServerDriver_1.SqlServerDriver || this.driver instanceof MysqlDriver_1.MysqlDriver)) return [3 /*break*/, 4];
                         databases_1 = this.driver.database ? [this.driver.database] : [];
                         this.entityMetadatas.forEach(function (metadata) {
                             if (metadata.database && databases_1.indexOf(metadata.database) === -1)
                                 databases_1.push(metadata.database);
                         });
                         return [4 /*yield*/, __2.PromiseUtils.runInSequence(databases_1, function (database) { return queryRunner.clearDatabase(database); })];
-                    case 2:
+                    case 3:
                         _a.sent();
-                        return [3 /*break*/, 5];
-                    case 3: return [4 /*yield*/, queryRunner.clearDatabase()];
-                    case 4:
+                        return [3 /*break*/, 6];
+                    case 4: return [4 /*yield*/, queryRunner.clearDatabase()];
+                    case 5:
                         _a.sent();
-                        _a.label = 5;
-                    case 5: return [4 /*yield*/, queryRunner.release()];
-                    case 6:
+                        _a.label = 6;
+                    case 6: return [3 /*break*/, 9];
+                    case 7: return [4 /*yield*/, queryRunner.release()];
+                    case 8:
                         _a.sent();
-                        return [2 /*return*/];
+                        return [7 /*endfinally*/];
+                    case 9: return [2 /*return*/];
                 }
             });
         });
@@ -299,6 +301,26 @@ var Connection = /** @class */ (function () {
                     case 1:
                         _a.sent();
                         return [2 /*return*/];
+                }
+            });
+        });
+    };
+    /**
+     * Lists all migrations and whether they have been run.
+     * Returns true if there are no pending migrations
+     */
+    Connection.prototype.showMigrations = function () {
+        return tslib_1.__awaiter(this, void 0, void 0, function () {
+            var migrationExecutor;
+            return tslib_1.__generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0:
+                        if (!this.isConnected) {
+                            throw new CannotExecuteNotConnectedError_1.CannotExecuteNotConnectedError(this.name);
+                        }
+                        migrationExecutor = new MigrationExecutor_1.MigrationExecutor(this);
+                        return [4 /*yield*/, migrationExecutor.showMigrations()];
+                    case 1: return [2 /*return*/, _a.sent()];
                 }
             });
         });
@@ -475,7 +497,7 @@ var Connection = /** @class */ (function () {
         var migrations = connectionMetadataBuilder.buildMigrations(this.options.migrations || []);
         ObjectUtils_1.ObjectUtils.assign(this, { migrations: migrations });
         // validate all created entity metadatas to make sure user created entities are valid and correct
-        entityMetadataValidator.validateMany(this.entityMetadatas, this.driver);
+        entityMetadataValidator.validateMany(this.entityMetadatas.filter(function (metadata) { return metadata.tableType !== "view"; }), this.driver);
     };
     return Connection;
 }());

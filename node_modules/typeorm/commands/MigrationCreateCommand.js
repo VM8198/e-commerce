@@ -56,7 +56,10 @@ var MigrationCreateCommand = /** @class */ (function () {
                         _a.label = 2;
                     case 2:
                         _a.trys.push([2, 4, , 5]);
-                        connectionOptionsReader = new ConnectionOptionsReader_1.ConnectionOptionsReader({ root: process.cwd(), configName: args.config });
+                        connectionOptionsReader = new ConnectionOptionsReader_1.ConnectionOptionsReader({
+                            root: process.cwd(),
+                            configName: args.config
+                        });
                         return [4 /*yield*/, connectionOptionsReader.get(args.connection)];
                     case 3:
                         connectionOptions = _a.sent();

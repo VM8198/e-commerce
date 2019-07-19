@@ -1,21 +1,23 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = require("tslib");
+var QueryFailedError_1 = require("../../error/QueryFailedError");
+var QueryRunnerAlreadyReleasedError_1 = require("../../error/QueryRunnerAlreadyReleasedError");
 var TransactionAlreadyStartedError_1 = require("../../error/TransactionAlreadyStartedError");
 var TransactionNotStartedError_1 = require("../../error/TransactionNotStartedError");
-var TableColumn_1 = require("../../schema-builder/table/TableColumn");
+var index_1 = require("../../index");
+var BaseQueryRunner_1 = require("../../query-runner/BaseQueryRunner");
 var Table_1 = require("../../schema-builder/table/Table");
+var TableCheck_1 = require("../../schema-builder/table/TableCheck");
+var TableColumn_1 = require("../../schema-builder/table/TableColumn");
 var TableForeignKey_1 = require("../../schema-builder/table/TableForeignKey");
 var TableIndex_1 = require("../../schema-builder/table/TableIndex");
-var QueryRunnerAlreadyReleasedError_1 = require("../../error/QueryRunnerAlreadyReleasedError");
-var MssqlParameter_1 = require("./MssqlParameter");
-var OrmUtils_1 = require("../../util/OrmUtils");
-var QueryFailedError_1 = require("../../error/QueryFailedError");
 var TableUnique_1 = require("../../schema-builder/table/TableUnique");
-var TableCheck_1 = require("../../schema-builder/table/TableCheck");
-var BaseQueryRunner_1 = require("../../query-runner/BaseQueryRunner");
+var View_1 = require("../../schema-builder/view/View");
 var Broadcaster_1 = require("../../subscriber/Broadcaster");
-var index_1 = require("../../index");
+var OrmUtils_1 = require("../../util/OrmUtils");
+var Query_1 = require("../Query");
+var MssqlParameter_1 = require("./MssqlParameter");
 /**
  * Runs queries on a single SQL Server database connection.
  */
@@ -414,7 +416,7 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                     case 0:
                         parsedTableName = this.parseTableName(tableOrName);
                         schema = parsedTableName.schema === "SCHEMA_NAME()" ? parsedTableName.schema : "'" + parsedTableName.schema + "'";
-                        sql = "SELECT * FROM \"" + parsedTableName.database + "\".\"INFORMATION_SCHEMA\".\"TABLES\" WHERE \"TABLE_NAME\" = '" + parsedTableName.tableName + "' AND \"TABLE_SCHEMA\" = " + schema;
+                        sql = "SELECT * FROM \"" + parsedTableName.database + "\".\"INFORMATION_SCHEMA\".\"TABLES\" WHERE \"TABLE_NAME\" = '" + parsedTableName.name + "' AND \"TABLE_SCHEMA\" = " + schema;
                         return [4 /*yield*/, this.query(sql)];
                     case 1:
                         result = _a.sent();
@@ -434,7 +436,7 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                     case 0:
                         parsedTableName = this.parseTableName(tableOrName);
                         schema = parsedTableName.schema === "SCHEMA_NAME()" ? parsedTableName.schema : "'" + parsedTableName.schema + "'";
-                        sql = "SELECT * FROM \"" + parsedTableName.database + "\".\"INFORMATION_SCHEMA\".\"TABLES\" WHERE \"TABLE_NAME\" = '" + parsedTableName.tableName + "' AND \"COLUMN_NAME\" = '" + columnName + "' AND \"TABLE_SCHEMA\" = " + schema;
+                        sql = "SELECT * FROM \"" + parsedTableName.database + "\".\"INFORMATION_SCHEMA\".\"TABLES\" WHERE \"TABLE_NAME\" = '" + parsedTableName.name + "' AND \"COLUMN_NAME\" = '" + columnName + "' AND \"TABLE_SCHEMA\" = " + schema;
                         return [4 /*yield*/, this.query(sql)];
                     case 1:
                         result = _a.sent();
@@ -454,7 +456,7 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                     case 0:
                         up = ifNotExist ? "IF DB_ID('" + database + "') IS NULL CREATE DATABASE \"" + database + "\"" : "CREATE DATABASE \"" + database + "\"";
                         down = "DROP DATABASE \"" + database + "\"";
-                        return [4 /*yield*/, this.executeQueries(up, down)];
+                        return [4 /*yield*/, this.executeQueries(new Query_1.Query(up), new Query_1.Query(down))];
                     case 1:
                         _a.sent();
                         return [2 /*return*/];
@@ -473,7 +475,7 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                     case 0:
                         up = ifExist ? "IF DB_ID('" + database + "') IS NOT NULL DROP DATABASE \"" + database + "\"" : "DROP DATABASE \"" + database + "\"";
                         down = "CREATE DATABASE \"" + database + "\"";
-                        return [4 /*yield*/, this.executeQueries(up, down)];
+                        return [4 /*yield*/, this.executeQueries(new Query_1.Query(up), new Query_1.Query(down))];
                     case 1:
                         _a.sent();
                         return [2 /*return*/];
@@ -495,8 +497,8 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                         downQueries = [];
                         if (!(schemaPath.indexOf(".") === -1)) return [3 /*break*/, 1];
                         upQuery = ifNotExist ? "IF SCHEMA_ID('" + schemaPath + "') IS NULL BEGIN EXEC ('CREATE SCHEMA \"" + schemaPath + "\"') END" : "CREATE SCHEMA \"" + schemaPath + "\"";
-                        upQueries.push(upQuery);
-                        downQueries.push("DROP SCHEMA \"" + schemaPath + "\"");
+                        upQueries.push(new Query_1.Query(upQuery));
+                        downQueries.push(new Query_1.Query("DROP SCHEMA \"" + schemaPath + "\""));
                         return [3 /*break*/, 3];
                     case 1:
                         dbName = schemaPath.split(".")[0];
@@ -504,13 +506,13 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                         return [4 /*yield*/, this.getCurrentDatabase()];
                     case 2:
                         currentDB = _a.sent();
-                        upQueries.push("USE \"" + dbName + "\"");
-                        downQueries.push("USE \"" + currentDB + "\"");
+                        upQueries.push(new Query_1.Query("USE \"" + dbName + "\""));
+                        downQueries.push(new Query_1.Query("USE \"" + currentDB + "\""));
                         upQuery = ifNotExist ? "IF SCHEMA_ID('" + schema + "') IS NULL BEGIN EXEC ('CREATE SCHEMA \"" + schema + "\"') END" : "CREATE SCHEMA \"" + schema + "\"";
-                        upQueries.push(upQuery);
-                        downQueries.push("DROP SCHEMA \"" + schema + "\"");
-                        upQueries.push("USE \"" + currentDB + "\"");
-                        downQueries.push("USE \"" + dbName + "\"");
+                        upQueries.push(new Query_1.Query(upQuery));
+                        downQueries.push(new Query_1.Query("DROP SCHEMA \"" + schema + "\""));
+                        upQueries.push(new Query_1.Query("USE \"" + currentDB + "\""));
+                        downQueries.push(new Query_1.Query("USE \"" + dbName + "\""));
                         _a.label = 3;
                     case 3: return [4 /*yield*/, this.executeQueries(upQueries, downQueries)];
                     case 4:
@@ -534,8 +536,8 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                         downQueries = [];
                         if (!(schemaPath.indexOf(".") === -1)) return [3 /*break*/, 1];
                         upQuery = ifExist ? "IF SCHEMA_ID('" + schemaPath + "') IS NULL BEGIN EXEC ('DROP SCHEMA \"" + schemaPath + "\"') END" : "DROP SCHEMA \"" + schemaPath + "\"";
-                        upQueries.push(upQuery);
-                        downQueries.push("CREATE SCHEMA \"" + schemaPath + "\"");
+                        upQueries.push(new Query_1.Query(upQuery));
+                        downQueries.push(new Query_1.Query("CREATE SCHEMA \"" + schemaPath + "\""));
                         return [3 /*break*/, 3];
                     case 1:
                         dbName = schemaPath.split(".")[0];
@@ -543,13 +545,13 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                         return [4 /*yield*/, this.getCurrentDatabase()];
                     case 2:
                         currentDB = _a.sent();
-                        upQueries.push("USE \"" + dbName + "\"");
-                        downQueries.push("USE \"" + currentDB + "\"");
+                        upQueries.push(new Query_1.Query("USE \"" + dbName + "\""));
+                        downQueries.push(new Query_1.Query("USE \"" + currentDB + "\""));
                         upQuery = ifExist ? "IF SCHEMA_ID('" + schema + "') IS NULL BEGIN EXEC ('DROP SCHEMA \"" + schema + "\"') END" : "DROP SCHEMA \"" + schema + "\"";
-                        upQueries.push(upQuery);
-                        downQueries.push("CREATE SCHEMA \"" + schema + "\"");
-                        upQueries.push("USE \"" + currentDB + "\"");
-                        downQueries.push("USE \"" + dbName + "\"");
+                        upQueries.push(new Query_1.Query(upQuery));
+                        downQueries.push(new Query_1.Query("CREATE SCHEMA \"" + schema + "\""));
+                        upQueries.push(new Query_1.Query("USE \"" + currentDB + "\""));
+                        downQueries.push(new Query_1.Query("USE \"" + dbName + "\""));
                         _a.label = 3;
                     case 3: return [4 /*yield*/, this.executeQueries(upQueries, downQueries)];
                     case 4:
@@ -660,6 +662,68 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
         });
     };
     /**
+     * Creates a new view.
+     */
+    SqlServerQueryRunner.prototype.createView = function (view) {
+        return tslib_1.__awaiter(this, void 0, void 0, function () {
+            var upQueries, downQueries, _a, _b, _c, _d;
+            return tslib_1.__generator(this, function (_e) {
+                switch (_e.label) {
+                    case 0:
+                        upQueries = [];
+                        downQueries = [];
+                        upQueries.push(this.createViewSql(view));
+                        _b = (_a = upQueries).push;
+                        return [4 /*yield*/, this.insertViewDefinitionSql(view)];
+                    case 1:
+                        _b.apply(_a, [_e.sent()]);
+                        downQueries.push(this.dropViewSql(view));
+                        _d = (_c = downQueries).push;
+                        return [4 /*yield*/, this.deleteViewDefinitionSql(view)];
+                    case 2:
+                        _d.apply(_c, [_e.sent()]);
+                        return [4 /*yield*/, this.executeQueries(upQueries, downQueries)];
+                    case 3:
+                        _e.sent();
+                        return [2 /*return*/];
+                }
+            });
+        });
+    };
+    /**
+     * Drops the view.
+     */
+    SqlServerQueryRunner.prototype.dropView = function (target) {
+        return tslib_1.__awaiter(this, void 0, void 0, function () {
+            var viewName, view, upQueries, downQueries, _a, _b, _c, _d;
+            return tslib_1.__generator(this, function (_e) {
+                switch (_e.label) {
+                    case 0:
+                        viewName = target instanceof View_1.View ? target.name : target;
+                        return [4 /*yield*/, this.getCachedView(viewName)];
+                    case 1:
+                        view = _e.sent();
+                        upQueries = [];
+                        downQueries = [];
+                        _b = (_a = upQueries).push;
+                        return [4 /*yield*/, this.deleteViewDefinitionSql(view)];
+                    case 2:
+                        _b.apply(_a, [_e.sent()]);
+                        upQueries.push(this.dropViewSql(view));
+                        _d = (_c = downQueries).push;
+                        return [4 /*yield*/, this.insertViewDefinitionSql(view)];
+                    case 3:
+                        _d.apply(_c, [_e.sent()]);
+                        downQueries.push(this.createViewSql(view));
+                        return [4 /*yield*/, this.executeQueries(upQueries, downQueries)];
+                    case 4:
+                        _e.sent();
+                        return [2 /*return*/];
+                }
+            });
+        });
+    };
+    /**
      * Renames a table.
      */
     SqlServerQueryRunner.prototype.renameTable = function (oldTableOrName, newTableName) {
@@ -700,28 +764,28 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                     case 4:
                         currentDB = _b.sent();
                         if (dbName && dbName !== currentDB) {
-                            upQueries.push("USE \"" + dbName + "\"");
-                            downQueries.push("USE \"" + currentDB + "\"");
+                            upQueries.push(new Query_1.Query("USE \"" + dbName + "\""));
+                            downQueries.push(new Query_1.Query("USE \"" + currentDB + "\""));
                         }
                         // rename table
-                        upQueries.push("EXEC sp_rename \"" + this.escapeTableName(oldTable, true) + "\", \"" + newTableName + "\"");
-                        downQueries.push("EXEC sp_rename \"" + this.escapeTableName(newTable, true) + "\", \"" + oldTableName + "\"");
+                        upQueries.push(new Query_1.Query("EXEC sp_rename \"" + this.escapePath(oldTable, true) + "\", \"" + newTableName + "\""));
+                        downQueries.push(new Query_1.Query("EXEC sp_rename \"" + this.escapePath(newTable, true) + "\", \"" + oldTableName + "\""));
                         // rename primary key constraint
                         if (newTable.primaryColumns.length > 0) {
                             columnNames = newTable.primaryColumns.map(function (column) { return column.name; });
                             oldPkName = this.connection.namingStrategy.primaryKeyName(oldTable, columnNames);
                             newPkName = this.connection.namingStrategy.primaryKeyName(newTable, columnNames);
                             // rename primary constraint
-                            upQueries.push("EXEC sp_rename \"" + this.escapeTableName(newTable, true) + "." + oldPkName + "\", \"" + newPkName + "\"");
-                            downQueries.push("EXEC sp_rename \"" + this.escapeTableName(newTable, true) + "." + newPkName + "\", \"" + oldPkName + "\"");
+                            upQueries.push(new Query_1.Query("EXEC sp_rename \"" + this.escapePath(newTable, true) + "." + oldPkName + "\", \"" + newPkName + "\""));
+                            downQueries.push(new Query_1.Query("EXEC sp_rename \"" + this.escapePath(newTable, true) + "." + newPkName + "\", \"" + oldPkName + "\""));
                         }
                         // rename unique constraints
                         newTable.uniques.forEach(function (unique) {
                             // build new constraint name
                             var newUniqueName = _this.connection.namingStrategy.uniqueConstraintName(newTable, unique.columnNames);
                             // build queries
-                            upQueries.push("EXEC sp_rename \"" + _this.escapeTableName(newTable, true) + "." + unique.name + "\", \"" + newUniqueName + "\"");
-                            downQueries.push("EXEC sp_rename \"" + _this.escapeTableName(newTable, true) + "." + newUniqueName + "\", \"" + unique.name + "\"");
+                            upQueries.push(new Query_1.Query("EXEC sp_rename \"" + _this.escapePath(newTable, true) + "." + unique.name + "\", \"" + newUniqueName + "\""));
+                            downQueries.push(new Query_1.Query("EXEC sp_rename \"" + _this.escapePath(newTable, true) + "." + newUniqueName + "\", \"" + unique.name + "\""));
                             // replace constraint name
                             unique.name = newUniqueName;
                         });
@@ -730,8 +794,8 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                             // build new constraint name
                             var newIndexName = _this.connection.namingStrategy.indexName(newTable, index.columnNames, index.where);
                             // build queries
-                            upQueries.push("EXEC sp_rename \"" + _this.escapeTableName(newTable, true) + "." + index.name + "\", \"" + newIndexName + "\", \"INDEX\"");
-                            downQueries.push("EXEC sp_rename \"" + _this.escapeTableName(newTable, true) + "." + newIndexName + "\", \"" + index.name + "\", \"INDEX\"");
+                            upQueries.push(new Query_1.Query("EXEC sp_rename \"" + _this.escapePath(newTable, true) + "." + index.name + "\", \"" + newIndexName + "\", \"INDEX\""));
+                            downQueries.push(new Query_1.Query("EXEC sp_rename \"" + _this.escapePath(newTable, true) + "." + newIndexName + "\", \"" + index.name + "\", \"INDEX\""));
                             // replace constraint name
                             index.name = newIndexName;
                         });
@@ -740,15 +804,15 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                             // build new constraint name
                             var newForeignKeyName = _this.connection.namingStrategy.foreignKeyName(newTable, foreignKey.columnNames);
                             // build queries
-                            upQueries.push("EXEC sp_rename \"" + _this.buildForeignKeyName(foreignKey.name, schemaName, dbName) + "\", \"" + newForeignKeyName + "\"");
-                            downQueries.push("EXEC sp_rename \"" + _this.buildForeignKeyName(newForeignKeyName, schemaName, dbName) + "\", \"" + foreignKey.name + "\"");
+                            upQueries.push(new Query_1.Query("EXEC sp_rename \"" + _this.buildForeignKeyName(foreignKey.name, schemaName, dbName) + "\", \"" + newForeignKeyName + "\""));
+                            downQueries.push(new Query_1.Query("EXEC sp_rename \"" + _this.buildForeignKeyName(newForeignKeyName, schemaName, dbName) + "\", \"" + foreignKey.name + "\""));
                             // replace constraint name
                             foreignKey.name = newForeignKeyName;
                         });
                         // change currently used database back to default db.
                         if (dbName && dbName !== currentDB) {
-                            upQueries.push("USE \"" + currentDB + "\"");
-                            downQueries.push("USE \"" + dbName + "\"");
+                            upQueries.push(new Query_1.Query("USE \"" + currentDB + "\""));
+                            downQueries.push(new Query_1.Query("USE \"" + dbName + "\""));
                         }
                         return [4 /*yield*/, this.executeQueries(upQueries, downQueries)];
                     case 5:
@@ -782,8 +846,8 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                         clonedTable = table.clone();
                         upQueries = [];
                         downQueries = [];
-                        upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD " + this.buildCreateColumnSql(table, column, false, false));
-                        downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP COLUMN \"" + column.name + "\"");
+                        upQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " ADD " + this.buildCreateColumnSql(table, column, false, true)));
+                        downQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " DROP COLUMN \"" + column.name + "\""));
                         // create or update primary key constraint
                         if (column.isPrimary) {
                             primaryColumns = clonedTable.primaryColumns;
@@ -791,14 +855,14 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                             if (primaryColumns.length > 0) {
                                 pkName_1 = this.connection.namingStrategy.primaryKeyName(clonedTable.name, primaryColumns.map(function (column) { return column.name; }));
                                 columnNames_1 = primaryColumns.map(function (column) { return "\"" + column.name + "\""; }).join(", ");
-                                upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP CONSTRAINT \"" + pkName_1 + "\"");
-                                downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD CONSTRAINT \"" + pkName_1 + "\" PRIMARY KEY (" + columnNames_1 + ")");
+                                upQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " DROP CONSTRAINT \"" + pkName_1 + "\""));
+                                downQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " ADD CONSTRAINT \"" + pkName_1 + "\" PRIMARY KEY (" + columnNames_1 + ")"));
                             }
                             primaryColumns.push(column);
                             pkName = this.connection.namingStrategy.primaryKeyName(clonedTable.name, primaryColumns.map(function (column) { return column.name; }));
                             columnNames = primaryColumns.map(function (column) { return "\"" + column.name + "\""; }).join(", ");
-                            upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD CONSTRAINT \"" + pkName + "\" PRIMARY KEY (" + columnNames + ")");
-                            downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP CONSTRAINT \"" + pkName + "\"");
+                            upQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " ADD CONSTRAINT \"" + pkName + "\" PRIMARY KEY (" + columnNames + ")"));
+                            downQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " DROP CONSTRAINT \"" + pkName + "\""));
                         }
                         columnIndex = clonedTable.indices.find(function (index) { return index.columnNames.length === 1 && index.columnNames[0] === column.name; });
                         if (columnIndex) {
@@ -812,14 +876,13 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                                 columnNames: [column.name]
                             });
                             clonedTable.uniques.push(uniqueConstraint);
-                            upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD CONSTRAINT \"" + uniqueConstraint.name + "\" UNIQUE (\"" + column.name + "\")");
-                            downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP CONSTRAINT \"" + uniqueConstraint.name + "\"");
+                            upQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " ADD CONSTRAINT \"" + uniqueConstraint.name + "\" UNIQUE (\"" + column.name + "\")"));
+                            downQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " DROP CONSTRAINT \"" + uniqueConstraint.name + "\""));
                         }
-                        // create default constraint
+                        // remove default constraint
                         if (column.default !== null && column.default !== undefined) {
                             defaultName = this.connection.namingStrategy.defaultConstraintName(table.name, column.name);
-                            upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD CONSTRAINT \"" + defaultName + "\" DEFAULT " + column.default + " FOR \"" + column.name + "\"");
-                            downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP CONSTRAINT \"" + defaultName + "\"");
+                            downQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " DROP CONSTRAINT \"" + defaultName + "\""));
                         }
                         return [4 /*yield*/, this.executeQueries(upQueries, downQueries)];
                     case 4:
@@ -942,12 +1005,12 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                     case 7:
                         currentDB = _b.sent();
                         if (dbName_1 && dbName_1 !== currentDB) {
-                            upQueries.push("USE \"" + dbName_1 + "\"");
-                            downQueries.push("USE \"" + currentDB + "\"");
+                            upQueries.push(new Query_1.Query("USE \"" + dbName_1 + "\""));
+                            downQueries.push(new Query_1.Query("USE \"" + currentDB + "\""));
                         }
                         // rename the column
-                        upQueries.push("EXEC sp_rename \"" + this.escapeTableName(table, true) + "." + oldColumn.name + "\", \"" + newColumn.name + "\"");
-                        downQueries.push("EXEC sp_rename \"" + this.escapeTableName(table, true) + "." + newColumn.name + "\", \"" + oldColumn.name + "\"");
+                        upQueries.push(new Query_1.Query("EXEC sp_rename \"" + this.escapePath(table, true) + "." + oldColumn.name + "\", \"" + newColumn.name + "\""));
+                        downQueries.push(new Query_1.Query("EXEC sp_rename \"" + this.escapePath(table, true) + "." + newColumn.name + "\", \"" + oldColumn.name + "\""));
                         if (oldColumn.isPrimary === true) {
                             primaryColumns = clonedTable.primaryColumns;
                             columnNames = primaryColumns.map(function (column) { return column.name; });
@@ -957,8 +1020,8 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                             columnNames.push(newColumn.name);
                             newPkName = this.connection.namingStrategy.primaryKeyName(clonedTable, columnNames);
                             // rename primary constraint
-                            upQueries.push("EXEC sp_rename \"" + this.escapeTableName(clonedTable, true) + "." + oldPkName + "\", \"" + newPkName + "\"");
-                            downQueries.push("EXEC sp_rename \"" + this.escapeTableName(clonedTable, true) + "." + newPkName + "\", \"" + oldPkName + "\"");
+                            upQueries.push(new Query_1.Query("EXEC sp_rename \"" + this.escapePath(clonedTable, true) + "." + oldPkName + "\", \"" + newPkName + "\""));
+                            downQueries.push(new Query_1.Query("EXEC sp_rename \"" + this.escapePath(clonedTable, true) + "." + newPkName + "\", \"" + oldPkName + "\""));
                         }
                         // rename index constraints
                         clonedTable.findColumnIndices(oldColumn).forEach(function (index) {
@@ -967,8 +1030,8 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                             index.columnNames.push(newColumn.name);
                             var newIndexName = _this.connection.namingStrategy.indexName(clonedTable, index.columnNames, index.where);
                             // build queries
-                            upQueries.push("EXEC sp_rename \"" + _this.escapeTableName(clonedTable, true) + "." + index.name + "\", \"" + newIndexName + "\", \"INDEX\"");
-                            downQueries.push("EXEC sp_rename \"" + _this.escapeTableName(clonedTable, true) + "." + newIndexName + "\", \"" + index.name + "\", \"INDEX\"");
+                            upQueries.push(new Query_1.Query("EXEC sp_rename \"" + _this.escapePath(clonedTable, true) + "." + index.name + "\", \"" + newIndexName + "\", \"INDEX\""));
+                            downQueries.push(new Query_1.Query("EXEC sp_rename \"" + _this.escapePath(clonedTable, true) + "." + newIndexName + "\", \"" + index.name + "\", \"INDEX\""));
                             // replace constraint name
                             index.name = newIndexName;
                         });
@@ -979,8 +1042,8 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                             foreignKey.columnNames.push(newColumn.name);
                             var newForeignKeyName = _this.connection.namingStrategy.foreignKeyName(clonedTable, foreignKey.columnNames);
                             // build queries
-                            upQueries.push("EXEC sp_rename \"" + _this.buildForeignKeyName(foreignKey.name, schemaName_1, dbName_1) + "\", \"" + newForeignKeyName + "\"");
-                            downQueries.push("EXEC sp_rename \"" + _this.buildForeignKeyName(newForeignKeyName, schemaName_1, dbName_1) + "\", \"" + foreignKey.name + "\"");
+                            upQueries.push(new Query_1.Query("EXEC sp_rename \"" + _this.buildForeignKeyName(foreignKey.name, schemaName_1, dbName_1) + "\", \"" + newForeignKeyName + "\""));
+                            downQueries.push(new Query_1.Query("EXEC sp_rename \"" + _this.buildForeignKeyName(newForeignKeyName, schemaName_1, dbName_1) + "\", \"" + foreignKey.name + "\""));
                             // replace constraint name
                             foreignKey.name = newForeignKeyName;
                         });
@@ -991,8 +1054,8 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                             check.columnNames.push(newColumn.name);
                             var newCheckName = _this.connection.namingStrategy.checkConstraintName(clonedTable, check.expression);
                             // build queries
-                            upQueries.push("EXEC sp_rename \"" + _this.escapeTableName(clonedTable, true) + "." + check.name + "\", \"" + newCheckName + "\"");
-                            downQueries.push("EXEC sp_rename \"" + _this.escapeTableName(clonedTable, true) + "." + newCheckName + "\", \"" + check.name + "\"");
+                            upQueries.push(new Query_1.Query("EXEC sp_rename \"" + _this.escapePath(clonedTable, true) + "." + check.name + "\", \"" + newCheckName + "\""));
+                            downQueries.push(new Query_1.Query("EXEC sp_rename \"" + _this.escapePath(clonedTable, true) + "." + newCheckName + "\", \"" + check.name + "\""));
                             // replace constraint name
                             check.name = newCheckName;
                         });
@@ -1003,15 +1066,15 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                             unique.columnNames.push(newColumn.name);
                             var newUniqueName = _this.connection.namingStrategy.uniqueConstraintName(clonedTable, unique.columnNames);
                             // build queries
-                            upQueries.push("EXEC sp_rename \"" + _this.escapeTableName(clonedTable, true) + "." + unique.name + "\", \"" + newUniqueName + "\"");
-                            downQueries.push("EXEC sp_rename \"" + _this.escapeTableName(clonedTable, true) + "." + newUniqueName + "\", \"" + unique.name + "\"");
+                            upQueries.push(new Query_1.Query("EXEC sp_rename \"" + _this.escapePath(clonedTable, true) + "." + unique.name + "\", \"" + newUniqueName + "\""));
+                            downQueries.push(new Query_1.Query("EXEC sp_rename \"" + _this.escapePath(clonedTable, true) + "." + newUniqueName + "\", \"" + unique.name + "\""));
                             // replace constraint name
                             unique.name = newUniqueName;
                         });
                         // change currently used database back to default db.
                         if (dbName_1 && dbName_1 !== currentDB) {
-                            upQueries.push("USE \"" + currentDB + "\"");
-                            downQueries.push("USE \"" + dbName_1 + "\"");
+                            upQueries.push(new Query_1.Query("USE \"" + currentDB + "\""));
+                            downQueries.push(new Query_1.Query("USE \"" + dbName_1 + "\""));
                         }
                         oldTableColumn = clonedTable.columns.find(function (column) { return column.name === oldColumn.name; });
                         clonedTable.columns[clonedTable.columns.indexOf(oldTableColumn)].name = newColumn.name;
@@ -1019,8 +1082,8 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                         _b.label = 8;
                     case 8:
                         if (this.isColumnChanged(oldColumn, newColumn)) {
-                            upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ALTER COLUMN " + this.buildCreateColumnSql(table, newColumn, true, false));
-                            downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ALTER COLUMN " + this.buildCreateColumnSql(table, oldColumn, true, false));
+                            upQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " ALTER COLUMN " + this.buildCreateColumnSql(table, newColumn, true, false)));
+                            downQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " ALTER COLUMN " + this.buildCreateColumnSql(table, oldColumn, true, false)));
                         }
                         if (newColumn.isPrimary !== oldColumn.isPrimary) {
                             primaryColumns = clonedTable.primaryColumns;
@@ -1028,8 +1091,8 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                             if (primaryColumns.length > 0) {
                                 pkName = this.connection.namingStrategy.primaryKeyName(clonedTable.name, primaryColumns.map(function (column) { return column.name; }));
                                 columnNames = primaryColumns.map(function (column) { return "\"" + column.name + "\""; }).join(", ");
-                                upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP CONSTRAINT \"" + pkName + "\"");
-                                downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD CONSTRAINT \"" + pkName + "\" PRIMARY KEY (" + columnNames + ")");
+                                upQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " DROP CONSTRAINT \"" + pkName + "\""));
+                                downQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " ADD CONSTRAINT \"" + pkName + "\" PRIMARY KEY (" + columnNames + ")"));
                             }
                             if (newColumn.isPrimary === true) {
                                 primaryColumns.push(newColumn);
@@ -1037,8 +1100,8 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                                 column.isPrimary = true;
                                 pkName = this.connection.namingStrategy.primaryKeyName(clonedTable.name, primaryColumns.map(function (column) { return column.name; }));
                                 columnNames = primaryColumns.map(function (column) { return "\"" + column.name + "\""; }).join(", ");
-                                upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD CONSTRAINT \"" + pkName + "\" PRIMARY KEY (" + columnNames + ")");
-                                downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP CONSTRAINT \"" + pkName + "\"");
+                                upQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " ADD CONSTRAINT \"" + pkName + "\" PRIMARY KEY (" + columnNames + ")"));
+                                downQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " DROP CONSTRAINT \"" + pkName + "\""));
                             }
                             else {
                                 primaryColumn = primaryColumns.find(function (c) { return c.name === newColumn.name; });
@@ -1049,8 +1112,8 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                                 if (primaryColumns.length > 0) {
                                     pkName = this.connection.namingStrategy.primaryKeyName(clonedTable.name, primaryColumns.map(function (column) { return column.name; }));
                                     columnNames = primaryColumns.map(function (column) { return "\"" + column.name + "\""; }).join(", ");
-                                    upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD CONSTRAINT \"" + pkName + "\" PRIMARY KEY (" + columnNames + ")");
-                                    downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP CONSTRAINT \"" + pkName + "\"");
+                                    upQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " ADD CONSTRAINT \"" + pkName + "\" PRIMARY KEY (" + columnNames + ")"));
+                                    downQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " DROP CONSTRAINT \"" + pkName + "\""));
                                 }
                             }
                         }
@@ -1061,28 +1124,28 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                                     columnNames: [newColumn.name]
                                 });
                                 clonedTable.uniques.push(uniqueConstraint);
-                                upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD CONSTRAINT \"" + uniqueConstraint.name + "\" UNIQUE (\"" + newColumn.name + "\")");
-                                downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP CONSTRAINT \"" + uniqueConstraint.name + "\"");
+                                upQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " ADD CONSTRAINT \"" + uniqueConstraint.name + "\" UNIQUE (\"" + newColumn.name + "\")"));
+                                downQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " DROP CONSTRAINT \"" + uniqueConstraint.name + "\""));
                             }
                             else {
                                 uniqueConstraint = clonedTable.uniques.find(function (unique) {
                                     return unique.columnNames.length === 1 && !!unique.columnNames.find(function (columnName) { return columnName === newColumn.name; });
                                 });
                                 clonedTable.uniques.splice(clonedTable.uniques.indexOf(uniqueConstraint), 1);
-                                upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP CONSTRAINT \"" + uniqueConstraint.name + "\"");
-                                downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD CONSTRAINT \"" + uniqueConstraint.name + "\" UNIQUE (\"" + newColumn.name + "\")");
+                                upQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " DROP CONSTRAINT \"" + uniqueConstraint.name + "\""));
+                                downQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " ADD CONSTRAINT \"" + uniqueConstraint.name + "\" UNIQUE (\"" + newColumn.name + "\")"));
                             }
                         }
                         if (newColumn.default !== oldColumn.default) {
                             if (newColumn.default !== null && newColumn.default !== undefined) {
                                 defaultName = this.connection.namingStrategy.defaultConstraintName(table.name, newColumn.name);
-                                upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD CONSTRAINT \"" + defaultName + "\" DEFAULT " + newColumn.default + " FOR \"" + newColumn.name + "\"");
-                                downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP CONSTRAINT \"" + defaultName + "\"");
+                                upQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " ADD CONSTRAINT \"" + defaultName + "\" DEFAULT " + newColumn.default + " FOR \"" + newColumn.name + "\""));
+                                downQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " DROP CONSTRAINT \"" + defaultName + "\""));
                             }
                             else if (oldColumn.default !== null && oldColumn.default !== undefined) {
                                 defaultName = this.connection.namingStrategy.defaultConstraintName(table.name, oldColumn.name);
-                                upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP CONSTRAINT \"" + defaultName + "\"");
-                                downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD CONSTRAINT \"" + defaultName + "\" DEFAULT " + oldColumn.default + " FOR \"" + oldColumn.name + "\"");
+                                upQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " DROP CONSTRAINT \"" + defaultName + "\""));
+                                downQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " ADD CONSTRAINT \"" + defaultName + "\" DEFAULT " + oldColumn.default + " FOR \"" + oldColumn.name + "\""));
                             }
                         }
                         return [4 /*yield*/, this.executeQueries(upQueries, downQueries)];
@@ -1139,16 +1202,16 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                         if (column.isPrimary) {
                             pkName = this.connection.namingStrategy.primaryKeyName(clonedTable.name, clonedTable.primaryColumns.map(function (column) { return column.name; }));
                             columnNames = clonedTable.primaryColumns.map(function (primaryColumn) { return "\"" + primaryColumn.name + "\""; }).join(", ");
-                            upQueries.push("ALTER TABLE " + this.escapeTableName(clonedTable) + " DROP CONSTRAINT \"" + pkName + "\"");
-                            downQueries.push("ALTER TABLE " + this.escapeTableName(clonedTable) + " ADD CONSTRAINT \"" + pkName + "\" PRIMARY KEY (" + columnNames + ")");
+                            upQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(clonedTable) + " DROP CONSTRAINT \"" + pkName + "\""));
+                            downQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(clonedTable) + " ADD CONSTRAINT \"" + pkName + "\" PRIMARY KEY (" + columnNames + ")"));
                             tableColumn = clonedTable.findColumnByName(column.name);
                             tableColumn.isPrimary = false;
                             // if primary key have multiple columns, we must recreate it without dropped column
                             if (clonedTable.primaryColumns.length > 0) {
                                 pkName_2 = this.connection.namingStrategy.primaryKeyName(clonedTable.name, clonedTable.primaryColumns.map(function (column) { return column.name; }));
                                 columnNames_2 = clonedTable.primaryColumns.map(function (primaryColumn) { return "\"" + primaryColumn.name + "\""; }).join(", ");
-                                upQueries.push("ALTER TABLE " + this.escapeTableName(clonedTable) + " ADD CONSTRAINT \"" + pkName_2 + "\" PRIMARY KEY (" + columnNames_2 + ")");
-                                downQueries.push("ALTER TABLE " + this.escapeTableName(clonedTable) + " DROP CONSTRAINT \"" + pkName_2 + "\"");
+                                upQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(clonedTable) + " ADD CONSTRAINT \"" + pkName_2 + "\" PRIMARY KEY (" + columnNames_2 + ")"));
+                                downQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(clonedTable) + " DROP CONSTRAINT \"" + pkName_2 + "\""));
                             }
                         }
                         columnIndex = clonedTable.indices.find(function (index) { return index.columnNames.length === 1 && index.columnNames[0] === column.name; });
@@ -1172,11 +1235,11 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                         // drop default constraint
                         if (column.default !== null && column.default !== undefined) {
                             defaultName = this.connection.namingStrategy.defaultConstraintName(table.name, column.name);
-                            upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP CONSTRAINT \"" + defaultName + "\"");
-                            downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD CONSTRAINT \"" + defaultName + "\" DEFAULT " + column.default + " FOR \"" + column.name + "\"");
+                            upQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " DROP CONSTRAINT \"" + defaultName + "\""));
+                            downQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " ADD CONSTRAINT \"" + defaultName + "\" DEFAULT " + column.default + " FOR \"" + column.name + "\""));
                         }
-                        upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP COLUMN \"" + column.name + "\"");
-                        downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD " + this.buildCreateColumnSql(table, column, false, false));
+                        upQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " DROP COLUMN \"" + column.name + "\""));
+                        downQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " ADD " + this.buildCreateColumnSql(table, column, false, false)));
                         return [4 /*yield*/, this.executeQueries(upQueries, downQueries)];
                     case 4:
                         _b.sent();
@@ -1264,8 +1327,8 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                         if (primaryColumns.length > 0) {
                             pkName_3 = this.connection.namingStrategy.primaryKeyName(clonedTable.name, primaryColumns.map(function (column) { return column.name; }));
                             columnNamesString_1 = primaryColumns.map(function (column) { return "\"" + column.name + "\""; }).join(", ");
-                            upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP CONSTRAINT \"" + pkName_3 + "\"");
-                            downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD CONSTRAINT \"" + pkName_3 + "\" PRIMARY KEY (" + columnNamesString_1 + ")");
+                            upQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " DROP CONSTRAINT \"" + pkName_3 + "\""));
+                            downQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " ADD CONSTRAINT \"" + pkName_3 + "\" PRIMARY KEY (" + columnNamesString_1 + ")"));
                         }
                         // update columns in table.
                         clonedTable.columns
@@ -1273,8 +1336,8 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                             .forEach(function (column) { return column.isPrimary = true; });
                         pkName = this.connection.namingStrategy.primaryKeyName(clonedTable.name, columnNames);
                         columnNamesString = columnNames.map(function (columnName) { return "\"" + columnName + "\""; }).join(", ");
-                        upQueries.push("ALTER TABLE " + this.escapeTableName(table) + " ADD CONSTRAINT \"" + pkName + "\" PRIMARY KEY (" + columnNamesString + ")");
-                        downQueries.push("ALTER TABLE " + this.escapeTableName(table) + " DROP CONSTRAINT \"" + pkName + "\"");
+                        upQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " ADD CONSTRAINT \"" + pkName + "\" PRIMARY KEY (" + columnNamesString + ")"));
+                        downQueries.push(new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " DROP CONSTRAINT \"" + pkName + "\""));
                         return [4 /*yield*/, this.executeQueries(upQueries, downQueries)];
                     case 4:
                         _b.sent();
@@ -1771,7 +1834,7 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
         return tslib_1.__awaiter(this, void 0, void 0, function () {
             return tslib_1.__generator(this, function (_a) {
                 switch (_a.label) {
-                    case 0: return [4 /*yield*/, this.query("TRUNCATE TABLE " + this.escapeTableName(tablePath))];
+                    case 0: return [4 /*yield*/, this.query("TRUNCATE TABLE " + this.escapePath(tablePath))];
                     case 1:
                         _a.sent();
                         return [2 /*return*/];
@@ -1784,7 +1847,7 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
      */
     SqlServerQueryRunner.prototype.clearDatabase = function (database) {
         return tslib_1.__awaiter(this, void 0, void 0, function () {
-            var isDatabaseExist, allTablesSql, allTablesResults, error_1, rollbackError_1;
+            var isDatabaseExist, allViewsSql, allViewsResults, allTablesSql, allTablesResults, error_1, rollbackError_1;
             var _this = this;
             return tslib_1.__generator(this, function (_a) {
                 switch (_a.label) {
@@ -1801,12 +1864,25 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                         _a.sent();
                         _a.label = 4;
                     case 4:
-                        _a.trys.push([4, 9, , 14]);
+                        _a.trys.push([4, 11, , 16]);
+                        allViewsSql = database
+                            ? "SELECT * FROM \"" + database + "\".\"INFORMATION_SCHEMA\".\"VIEWS\""
+                            : "SELECT * FROM \"INFORMATION_SCHEMA\".\"VIEWS\"";
+                        return [4 /*yield*/, this.query(allViewsSql)];
+                    case 5:
+                        allViewsResults = _a.sent();
+                        return [4 /*yield*/, Promise.all(allViewsResults.map(function (viewResult) {
+                                // 'DROP VIEW' does not allow specifying the database name as a prefix to the object name.
+                                var dropTableSql = "DROP VIEW \"" + viewResult["TABLE_SCHEMA"] + "\".\"" + viewResult["TABLE_NAME"] + "\"";
+                                return _this.query(dropTableSql);
+                            }))];
+                    case 6:
+                        _a.sent();
                         allTablesSql = database
                             ? "SELECT * FROM \"" + database + "\".\"INFORMATION_SCHEMA\".\"TABLES\" WHERE \"TABLE_TYPE\" = 'BASE TABLE'"
                             : "SELECT * FROM \"INFORMATION_SCHEMA\".\"TABLES\" WHERE \"TABLE_TYPE\" = 'BASE TABLE'";
                         return [4 /*yield*/, this.query(allTablesSql)];
-                    case 5:
+                    case 7:
                         allTablesResults = _a.sent();
                         return [4 /*yield*/, Promise.all(allTablesResults.map(function (tablesResult) { return tslib_1.__awaiter(_this, void 0, void 0, function () {
                                 var dropForeignKeySql, dropFkQueries;
@@ -1824,32 +1900,32 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                                     }
                                 });
                             }); }))];
-                    case 6:
+                    case 8:
                         _a.sent();
                         return [4 /*yield*/, Promise.all(allTablesResults.map(function (tablesResult) {
                                 var dropTableSql = "DROP TABLE \"" + tablesResult["TABLE_CATALOG"] + "\".\"" + tablesResult["TABLE_SCHEMA"] + "\".\"" + tablesResult["TABLE_NAME"] + "\"";
                                 return _this.query(dropTableSql);
                             }))];
-                    case 7:
+                    case 9:
                         _a.sent();
                         return [4 /*yield*/, this.commitTransaction()];
-                    case 8:
-                        _a.sent();
-                        return [3 /*break*/, 14];
-                    case 9:
-                        error_1 = _a.sent();
-                        _a.label = 10;
                     case 10:
-                        _a.trys.push([10, 12, , 13]);
-                        return [4 /*yield*/, this.rollbackTransaction()];
-                    case 11:
                         _a.sent();
-                        return [3 /*break*/, 13];
+                        return [3 /*break*/, 16];
+                    case 11:
+                        error_1 = _a.sent();
+                        _a.label = 12;
                     case 12:
+                        _a.trys.push([12, 14, , 15]);
+                        return [4 /*yield*/, this.rollbackTransaction()];
+                    case 13:
+                        _a.sent();
+                        return [3 /*break*/, 15];
+                    case 14:
                         rollbackError_1 = _a.sent();
-                        return [3 /*break*/, 13];
-                    case 13: throw error_1;
-                    case 14: return [2 /*return*/];
+                        return [3 /*break*/, 15];
+                    case 15: throw error_1;
+                    case 16: return [2 /*return*/];
                 }
             });
         });
@@ -1885,6 +1961,70 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                     case 1:
                         currentSchemaQuery = _a.sent();
                         return [2 /*return*/, currentSchemaQuery[0]["schema_name"]];
+                }
+            });
+        });
+    };
+    SqlServerQueryRunner.prototype.loadViews = function (viewPaths) {
+        return tslib_1.__awaiter(this, void 0, void 0, function () {
+            var hasTable, currentSchema, currentDatabase, extractTableSchemaAndName, dbNames, viewsCondition, query, dbViews;
+            var _this = this;
+            return tslib_1.__generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0: return [4 /*yield*/, this.hasTable(this.getTypeormMetadataTableName())];
+                    case 1:
+                        hasTable = _a.sent();
+                        if (!hasTable)
+                            return [2 /*return*/, Promise.resolve([])];
+                        return [4 /*yield*/, this.getCurrentSchema()];
+                    case 2:
+                        currentSchema = _a.sent();
+                        return [4 /*yield*/, this.getCurrentDatabase()];
+                    case 3:
+                        currentDatabase = _a.sent();
+                        extractTableSchemaAndName = function (tableName) {
+                            var _a = tslib_1.__read(tableName.split("."), 3), database = _a[0], schema = _a[1], name = _a[2];
+                            // if name is empty, it means that tableName have only schema name and table name or only table name
+                            if (!name) {
+                                // if schema is empty, it means tableName have only name of a table. Otherwise it means that we have "schemaName"."tableName" string.
+                                if (!schema) {
+                                    name = database;
+                                    schema = _this.driver.options.schema || currentSchema;
+                                }
+                                else {
+                                    name = schema;
+                                    schema = database;
+                                }
+                            }
+                            else if (schema === "") {
+                                schema = _this.driver.options.schema || currentSchema;
+                            }
+                            return [schema, name];
+                        };
+                        dbNames = viewPaths
+                            .filter(function (viewPath) { return viewPath.split(".").length === 3; })
+                            .map(function (viewPath) { return viewPath.split(".")[0]; });
+                        if (this.driver.database && !dbNames.find(function (dbName) { return dbName === _this.driver.database; }))
+                            dbNames.push(this.driver.database);
+                        viewsCondition = viewPaths.map(function (viewPath) {
+                            var _a = tslib_1.__read(extractTableSchemaAndName(viewPath), 2), schema = _a[0], name = _a[1];
+                            return "(\"T\".\"SCHEMA\" = '" + schema + "' AND \"T\".\"NAME\" = '" + name + "')";
+                        }).join(" OR ");
+                        query = dbNames.map(function (dbName) {
+                            return "SELECT \"T\".*, \"V\".\"CHECK_OPTION\" FROM " + _this.escapePath(_this.getTypeormMetadataTableName()) + " \"t\" " +
+                                ("INNER JOIN \"" + dbName + "\".\"INFORMATION_SCHEMA\".\"VIEWS\" \"V\" ON \"V\".\"TABLE_SCHEMA\" = \"T\".\"SCHEMA\" AND \"v\".\"TABLE_NAME\" = \"T\".\"NAME\" WHERE \"T\".\"TYPE\" = 'VIEW' " + (viewsCondition ? "AND (" + viewsCondition + ")" : ""));
+                        }).join(" UNION ALL ");
+                        return [4 /*yield*/, this.query(query)];
+                    case 4:
+                        dbViews = _a.sent();
+                        return [2 /*return*/, dbViews.map(function (dbView) {
+                                var view = new View_1.View();
+                                var db = dbView["TABLE_CATALOG"] === currentDatabase ? undefined : dbView["TABLE_CATALOG"];
+                                var schema = dbView["schema"] === currentSchema && !_this.driver.options.schema ? undefined : dbView["schema"];
+                                view.name = _this.driver.buildTableName(dbView["name"], schema, db);
+                                view.expression = dbView["value"];
+                                return view;
+                            })];
                 }
             });
         });
@@ -2024,6 +2164,7 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                                     table.columns = dbColumns
                                         .filter(function (dbColumn) { return _this.driver.buildTableName(dbColumn["TABLE_NAME"], dbColumn["TABLE_SCHEMA"], dbColumn["TABLE_CATALOG"]) === tableFullName; })
                                         .map(function (dbColumn) {
+                                        var e_1, _a;
                                         var columnConstraints = dbConstraints.filter(function (dbConstraint) {
                                             return _this.driver.buildTableName(dbConstraint["TABLE_NAME"], dbConstraint["CONSTRAINT_SCHEMA"], dbConstraint["CONSTRAINT_CATALOG"]) === tableFullName
                                                 && dbConstraint["COLUMN_NAME"] === dbColumn["COLUMN_NAME"];
@@ -2057,6 +2198,37 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                                                 tableColumn.precision = dbColumn["NUMERIC_PRECISION"];
                                             if (dbColumn["NUMERIC_SCALE"] !== null && !_this.isDefaultColumnScale(table, tableColumn, dbColumn["NUMERIC_SCALE"]))
                                                 tableColumn.scale = dbColumn["NUMERIC_SCALE"];
+                                        }
+                                        if (tableColumn.type === "nvarchar") {
+                                            // Check if this is an enum
+                                            var columnCheckConstraints = columnConstraints.filter(function (constraint) { return constraint["CONSTRAINT_TYPE"] === "CHECK"; });
+                                            if (columnCheckConstraints.length) {
+                                                var isEnumRegexp = new RegExp("^\\(\\[" + tableColumn.name + "\\]='[^']+'(?: OR \\[" + tableColumn.name + "\\]='[^']+')*\\)$");
+                                                try {
+                                                    for (var columnCheckConstraints_1 = tslib_1.__values(columnCheckConstraints), columnCheckConstraints_1_1 = columnCheckConstraints_1.next(); !columnCheckConstraints_1_1.done; columnCheckConstraints_1_1 = columnCheckConstraints_1.next()) {
+                                                        var checkConstraint = columnCheckConstraints_1_1.value;
+                                                        if (isEnumRegexp.test(checkConstraint["definition"])) {
+                                                            // This is an enum constraint, make column into an enum
+                                                            tableColumn.type = "simple-enum";
+                                                            tableColumn.enum = [];
+                                                            var enumValueRegexp = new RegExp("\\[" + tableColumn.name + "\\]='([^']+)'", "g");
+                                                            var result = void 0;
+                                                            while ((result = enumValueRegexp.exec(checkConstraint["definition"])) !== null) {
+                                                                tableColumn.enum.unshift(result[1]);
+                                                            }
+                                                            // Skip other column constraints
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                                catch (e_1_1) { e_1 = { error: e_1_1 }; }
+                                                finally {
+                                                    try {
+                                                        if (columnCheckConstraints_1_1 && !columnCheckConstraints_1_1.done && (_a = columnCheckConstraints_1.return)) _a.call(columnCheckConstraints_1);
+                                                    }
+                                                    finally { if (e_1) throw e_1.error; }
+                                                }
+                                            }
                                         }
                                         tableColumn.default = dbColumn["COLUMN_DEFAULT"] !== null && dbColumn["COLUMN_DEFAULT"] !== undefined
                                             ? _this.removeParenthesisFromDefault(dbColumn["COLUMN_DEFAULT"])
@@ -2125,7 +2297,12 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                                         return _this.driver.buildTableName(dbIndex["TABLE_NAME"], dbIndex["TABLE_SCHEMA"], dbIndex["TABLE_CATALOG"]) === tableFullName;
                                     }), function (dbIndex) { return dbIndex["INDEX_NAME"]; });
                                     table.indices = tableIndexConstraints.map(function (constraint) {
-                                        var indices = dbIndices.filter(function (index) { return index["INDEX_NAME"] === constraint["INDEX_NAME"]; });
+                                        var indices = dbIndices.filter(function (index) {
+                                            return index["TABLE_CATALOG"] === constraint["TABLE_CATALOG"]
+                                                && index["TABLE_SCHEMA"] === constraint["TABLE_SCHEMA"]
+                                                && index["TABLE_NAME"] === constraint["TABLE_NAME"]
+                                                && index["INDEX_NAME"] === constraint["INDEX_NAME"];
+                                        });
                                         return new TableIndex_1.TableIndex({
                                             table: table,
                                             name: constraint["INDEX_NAME"],
@@ -2150,7 +2327,7 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
     SqlServerQueryRunner.prototype.createTableSql = function (table, createForeignKeys) {
         var _this = this;
         var columnDefinitions = table.columns.map(function (column) { return _this.buildCreateColumnSql(table, column, false, true); }).join(", ");
-        var sql = "CREATE TABLE " + this.escapeTableName(table) + " (" + columnDefinitions;
+        var sql = "CREATE TABLE " + this.escapePath(table) + " (" + columnDefinitions;
         table.columns
             .filter(function (column) { return column.isUnique; })
             .forEach(function (column) {
@@ -2182,7 +2359,7 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
                 if (!fk.name)
                     fk.name = _this.connection.namingStrategy.foreignKeyName(table.name, fk.columnNames);
                 var referencedColumnNames = fk.referencedColumnNames.map(function (columnName) { return "\"" + columnName + "\""; }).join(", ");
-                var constraint = "CONSTRAINT \"" + fk.name + "\" FOREIGN KEY (" + columnNames + ") REFERENCES " + _this.escapeTableName(fk.referencedTableName) + " (" + referencedColumnNames + ")";
+                var constraint = "CONSTRAINT \"" + fk.name + "\" FOREIGN KEY (" + columnNames + ") REFERENCES " + _this.escapePath(fk.referencedTableName) + " (" + referencedColumnNames + ")";
                 if (fk.onDelete)
                     constraint += " ON DELETE " + fk.onDelete;
                 if (fk.onUpdate)
@@ -2198,27 +2375,87 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
             sql += ", CONSTRAINT \"" + primaryKeyName + "\" PRIMARY KEY (" + columnNames + ")";
         }
         sql += ")";
-        return sql;
+        return new Query_1.Query(sql);
     };
     /**
      * Builds drop table sql.
      */
     SqlServerQueryRunner.prototype.dropTableSql = function (tableOrName, ifExist) {
-        return ifExist ? "DROP TABLE IF EXISTS " + this.escapeTableName(tableOrName) : "DROP TABLE " + this.escapeTableName(tableOrName);
+        var query = ifExist ? "DROP TABLE IF EXISTS " + this.escapePath(tableOrName) : "DROP TABLE " + this.escapePath(tableOrName);
+        return new Query_1.Query(query);
+    };
+    SqlServerQueryRunner.prototype.createViewSql = function (view) {
+        if (typeof view.expression === "string") {
+            return new Query_1.Query("CREATE VIEW " + this.escapePath(view) + " AS " + view.expression);
+        }
+        else {
+            return new Query_1.Query("CREATE VIEW " + this.escapePath(view) + " AS " + view.expression(this.connection).getQuery());
+        }
+    };
+    SqlServerQueryRunner.prototype.insertViewDefinitionSql = function (view) {
+        return tslib_1.__awaiter(this, void 0, void 0, function () {
+            var currentSchema, parsedTableName, expression, _a, query, parameters;
+            return tslib_1.__generator(this, function (_b) {
+                switch (_b.label) {
+                    case 0: return [4 /*yield*/, this.getCurrentSchema()];
+                    case 1:
+                        currentSchema = _b.sent();
+                        parsedTableName = this.parseTableName(view, currentSchema);
+                        expression = typeof view.expression === "string" ? view.expression.trim() : view.expression(this.connection).getQuery();
+                        _a = tslib_1.__read(this.connection.createQueryBuilder()
+                            .insert()
+                            .into(this.getTypeormMetadataTableName())
+                            .values({ type: "VIEW", database: parsedTableName.database, schema: parsedTableName.schema, name: parsedTableName.name, value: expression })
+                            .getQueryAndParameters(), 2), query = _a[0], parameters = _a[1];
+                        return [2 /*return*/, new Query_1.Query(query, parameters)];
+                }
+            });
+        });
+    };
+    /**
+     * Builds drop view sql.
+     */
+    SqlServerQueryRunner.prototype.dropViewSql = function (viewOrPath) {
+        return new Query_1.Query("DROP VIEW " + this.escapePath(viewOrPath));
+    };
+    /**
+     * Builds remove view sql.
+     */
+    SqlServerQueryRunner.prototype.deleteViewDefinitionSql = function (viewOrPath) {
+        return tslib_1.__awaiter(this, void 0, void 0, function () {
+            var currentSchema, parsedTableName, qb, _a, query, parameters;
+            return tslib_1.__generator(this, function (_b) {
+                switch (_b.label) {
+                    case 0: return [4 /*yield*/, this.getCurrentSchema()];
+                    case 1:
+                        currentSchema = _b.sent();
+                        parsedTableName = this.parseTableName(viewOrPath, currentSchema);
+                        qb = this.connection.createQueryBuilder();
+                        _a = tslib_1.__read(qb.delete()
+                            .from(this.getTypeormMetadataTableName())
+                            .where(qb.escape("type") + " = 'VIEW'")
+                            .andWhere(qb.escape("database") + " = :database", { database: parsedTableName.database })
+                            .andWhere(qb.escape("schema") + " = :schema", { schema: parsedTableName.schema })
+                            .andWhere(qb.escape("name") + " = :name", { name: parsedTableName.name })
+                            .getQueryAndParameters(), 2), query = _a[0], parameters = _a[1];
+                        return [2 /*return*/, new Query_1.Query(query, parameters)];
+                }
+            });
+        });
     };
     /**
      * Builds create index sql.
      */
     SqlServerQueryRunner.prototype.createIndexSql = function (table, index) {
         var columns = index.columnNames.map(function (columnName) { return "\"" + columnName + "\""; }).join(", ");
-        return "CREATE " + (index.isUnique ? "UNIQUE " : "") + "INDEX \"" + index.name + "\" ON " + this.escapeTableName(table) + " (" + columns + ") " + (index.where ? "WHERE " + index.where : "");
+        return new Query_1.Query("CREATE " + (index.isUnique ? "UNIQUE " : "") + "INDEX \"" + index.name + "\" ON " + this.escapePath(table) + " (" + columns + ") " + (index.where ? "WHERE " + index.where : ""));
     };
     /**
      * Builds drop index sql.
      */
     SqlServerQueryRunner.prototype.dropIndexSql = function (table, indexOrName) {
         var indexName = indexOrName instanceof TableIndex_1.TableIndex ? indexOrName.name : indexOrName;
-        return "DROP INDEX \"" + indexName + "\" ON " + this.escapeTableName(table);
+        return new Query_1.Query("DROP INDEX \"" + indexName + "\" ON " + this.escapePath(table));
     };
     /**
      * Builds create primary key sql.
@@ -2226,7 +2463,7 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
     SqlServerQueryRunner.prototype.createPrimaryKeySql = function (table, columnNames) {
         var primaryKeyName = this.connection.namingStrategy.primaryKeyName(table.name, columnNames);
         var columnNamesString = columnNames.map(function (columnName) { return "\"" + columnName + "\""; }).join(", ");
-        return "ALTER TABLE " + this.escapeTableName(table) + " ADD CONSTRAINT \"" + primaryKeyName + "\" PRIMARY KEY (" + columnNamesString + ")";
+        return new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " ADD CONSTRAINT \"" + primaryKeyName + "\" PRIMARY KEY (" + columnNamesString + ")");
     };
     /**
      * Builds drop primary key sql.
@@ -2234,34 +2471,34 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
     SqlServerQueryRunner.prototype.dropPrimaryKeySql = function (table) {
         var columnNames = table.primaryColumns.map(function (column) { return column.name; });
         var primaryKeyName = this.connection.namingStrategy.primaryKeyName(table.name, columnNames);
-        return "ALTER TABLE " + this.escapeTableName(table) + " DROP CONSTRAINT \"" + primaryKeyName + "\"";
+        return new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " DROP CONSTRAINT \"" + primaryKeyName + "\"");
     };
     /**
      * Builds create unique constraint sql.
      */
     SqlServerQueryRunner.prototype.createUniqueConstraintSql = function (table, uniqueConstraint) {
         var columnNames = uniqueConstraint.columnNames.map(function (column) { return "\"" + column + "\""; }).join(", ");
-        return "ALTER TABLE " + this.escapeTableName(table) + " ADD CONSTRAINT \"" + uniqueConstraint.name + "\" UNIQUE (" + columnNames + ")";
+        return new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " ADD CONSTRAINT \"" + uniqueConstraint.name + "\" UNIQUE (" + columnNames + ")");
     };
     /**
      * Builds drop unique constraint sql.
      */
     SqlServerQueryRunner.prototype.dropUniqueConstraintSql = function (table, uniqueOrName) {
         var uniqueName = uniqueOrName instanceof TableUnique_1.TableUnique ? uniqueOrName.name : uniqueOrName;
-        return "ALTER TABLE " + this.escapeTableName(table) + " DROP CONSTRAINT \"" + uniqueName + "\"";
+        return new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " DROP CONSTRAINT \"" + uniqueName + "\"");
     };
     /**
      * Builds create check constraint sql.
      */
     SqlServerQueryRunner.prototype.createCheckConstraintSql = function (table, checkConstraint) {
-        return "ALTER TABLE " + this.escapeTableName(table) + " ADD CONSTRAINT \"" + checkConstraint.name + "\" CHECK (" + checkConstraint.expression + ")";
+        return new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " ADD CONSTRAINT \"" + checkConstraint.name + "\" CHECK (" + checkConstraint.expression + ")");
     };
     /**
      * Builds drop check constraint sql.
      */
     SqlServerQueryRunner.prototype.dropCheckConstraintSql = function (table, checkOrName) {
         var checkName = checkOrName instanceof TableCheck_1.TableCheck ? checkOrName.name : checkOrName;
-        return "ALTER TABLE " + this.escapeTableName(table) + " DROP CONSTRAINT \"" + checkName + "\"";
+        return new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " DROP CONSTRAINT \"" + checkName + "\"");
     };
     /**
      * Builds create foreign key sql.
@@ -2269,26 +2506,26 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
     SqlServerQueryRunner.prototype.createForeignKeySql = function (table, foreignKey) {
         var columnNames = foreignKey.columnNames.map(function (column) { return "\"" + column + "\""; }).join(", ");
         var referencedColumnNames = foreignKey.referencedColumnNames.map(function (column) { return "\"" + column + "\""; }).join(",");
-        var sql = "ALTER TABLE " + this.escapeTableName(table) + " ADD CONSTRAINT \"" + foreignKey.name + "\" FOREIGN KEY (" + columnNames + ") " +
-            ("REFERENCES " + this.escapeTableName(foreignKey.referencedTableName) + "(" + referencedColumnNames + ")");
+        var sql = "ALTER TABLE " + this.escapePath(table) + " ADD CONSTRAINT \"" + foreignKey.name + "\" FOREIGN KEY (" + columnNames + ") " +
+            ("REFERENCES " + this.escapePath(foreignKey.referencedTableName) + "(" + referencedColumnNames + ")");
         if (foreignKey.onDelete)
             sql += " ON DELETE " + foreignKey.onDelete;
         if (foreignKey.onUpdate)
             sql += " ON UPDATE " + foreignKey.onUpdate;
-        return sql;
+        return new Query_1.Query(sql);
     };
     /**
      * Builds drop foreign key sql.
      */
     SqlServerQueryRunner.prototype.dropForeignKeySql = function (table, foreignKeyOrName) {
         var foreignKeyName = foreignKeyOrName instanceof TableForeignKey_1.TableForeignKey ? foreignKeyOrName.name : foreignKeyOrName;
-        return "ALTER TABLE " + this.escapeTableName(table) + " DROP CONSTRAINT \"" + foreignKeyName + "\"";
+        return new Query_1.Query("ALTER TABLE " + this.escapePath(table) + " DROP CONSTRAINT \"" + foreignKeyName + "\"");
     };
     /**
-     * Escapes given table name.
+     * Escapes given table or View path.
      */
-    SqlServerQueryRunner.prototype.escapeTableName = function (tableOrName, disableEscape) {
-        var name = tableOrName instanceof Table_1.Table ? tableOrName.name : tableOrName;
+    SqlServerQueryRunner.prototype.escapePath = function (target, disableEscape) {
+        var name = target instanceof Table_1.Table || target instanceof View_1.View ? target.name : target;
         if (this.driver.options.schema) {
             if (name.indexOf(".") === -1) {
                 name = this.driver.options.schema + "." + name;
@@ -2307,27 +2544,27 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
             return disableEscape ? i : "\"" + i + "\"";
         }).join(".");
     };
-    SqlServerQueryRunner.prototype.parseTableName = function (target) {
-        var tableName = target instanceof Table_1.Table ? target.name : target;
+    SqlServerQueryRunner.prototype.parseTableName = function (target, schema) {
+        var tableName = (target instanceof Table_1.Table || target instanceof View_1.View) ? target.name : target;
         if (tableName.split(".").length === 3) {
             return {
                 database: tableName.split(".")[0],
-                schema: tableName.split(".")[1] === "" ? "SCHEMA_NAME()" : tableName.split(".")[1],
-                tableName: tableName.split(".")[2]
+                schema: tableName.split(".")[1] === "" ? schema || "SCHEMA_NAME()" : tableName.split(".")[1],
+                name: tableName.split(".")[2]
             };
         }
         else if (tableName.split(".").length === 2) {
             return {
                 database: this.driver.database,
                 schema: tableName.split(".")[0],
-                tableName: tableName.split(".")[1]
+                name: tableName.split(".")[1]
             };
         }
         else {
             return {
                 database: this.driver.database,
-                schema: this.driver.options.schema ? this.driver.options.schema : "SCHEMA_NAME()",
-                tableName: tableName
+                schema: this.driver.options.schema ? this.driver.options.schema : schema || "SCHEMA_NAME()",
+                name: tableName
             };
         }
     };
@@ -2361,6 +2598,8 @@ var SqlServerQueryRunner = /** @class */ (function (_super) {
      */
     SqlServerQueryRunner.prototype.buildCreateColumnSql = function (table, column, skipIdentity, createDefault) {
         var c = "\"" + column.name + "\" " + this.connection.driver.createFullType(column);
+        if (column.enum)
+            c += " CHECK( " + column.name + " IN (" + column.enum.map(function (val) { return "'" + val + "'"; }).join(",") + ") )";
         if (column.collation)
             c += " COLLATE " + column.collation;
         if (column.isNullable !== true)

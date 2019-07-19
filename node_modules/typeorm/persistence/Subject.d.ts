@@ -123,4 +123,8 @@ export declare class Subject {
      * Important note: this method pops data from this subject's change maps.
      */
     createValueSetAndPopChangeMap(): ObjectLiteral;
+    /**
+     * Recomputes entityWithFulfilledIds and identifier when entity changes.
+     */
+    recompute(): void;
 }

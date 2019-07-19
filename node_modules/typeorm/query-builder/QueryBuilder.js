@@ -158,6 +158,12 @@ var QueryBuilder = /** @class */ (function () {
      */
     QueryBuilder.prototype.setParameters = function (parameters) {
         var _this = this;
+        // remove function parameters
+        Object.keys(parameters).forEach(function (key) {
+            if (parameters[key] instanceof Function) {
+                throw new Error("Function parameter isn't supported in the parameters. Please check \"" + key + "\" parameter.");
+            }
+        });
         // set parent query builder parameters as well in sub-query mode
         if (this.expressionMap.parentQueryBuilder)
             this.expressionMap.parentQueryBuilder.setParameters(parameters);
@@ -314,31 +320,7 @@ var QueryBuilder = /** @class */ (function () {
      * schema name, otherwise returns escaped table name.
      */
     QueryBuilder.prototype.getTableName = function (tablePath) {
-        // let tablePath = tableName;
-        // const driver = this.connection.driver;
-        // const schema = (driver.options as SqlServerConnectionOptions|PostgresConnectionOptions).schema;
-        // const metadata = this.connection.hasMetadata(tableName) ? this.connection.getMetadata(tableName) : undefined;
         var _this = this;
-        /*if (driver instanceof SqlServerDriver || driver instanceof PostgresDriver || driver instanceof MysqlDriver) {
-            if (metadata) {
-                if (metadata.schema) {
-                    tablePath = `${metadata.schema}.${tableName}`;
-                } else if (schema) {
-                    tablePath = `${schema}.${tableName}`;
-                }
-
-                if (metadata.database && !(driver instanceof PostgresDriver)) {
-                    if (!schema && !metadata.schema && driver instanceof SqlServerDriver) {
-                        tablePath = `${metadata.database}..${tablePath}`;
-                    } else {
-                        tablePath = `${metadata.database}.${tablePath}`;
-                    }
-                }
-
-            } else if (schema) {
-                tablePath = `${schema!}.${tableName}`;
-            }
-        }*/
         return tablePath.split(".")
             .map(function (i) {
             // this condition need because in SQL Server driver when custom database name was specified and schema name was not, we got `dbName..tableName` string, and doesn't need to escape middle empty string
@@ -587,6 +569,7 @@ var QueryBuilder = /** @class */ (function () {
                             var aliasPath = _this.expressionMap.aliasNamePrefixingEnabled ? _this.alias + "." + propertyPath : column.propertyPath;
                             var parameterValue = column.getEntityValue(where, true);
                             var parameterName = "where_" + whereIndex + "_" + propertyIndex + "_" + columnIndex;
+                            var parameterBaseCount = Object.keys(_this.expressionMap.nativeParameters).filter(function (x) { return x.startsWith(parameterName); }).length;
                             if (parameterValue === null) {
                                 return aliasPath + " IS NULL";
                             }
@@ -595,9 +578,9 @@ var QueryBuilder = /** @class */ (function () {
                                 if (parameterValue.useParameter) {
                                     var realParameterValues = parameterValue.multipleParameters ? parameterValue.value : [parameterValue.value];
                                     realParameterValues.forEach(function (realParameterValue, realParameterValueIndex) {
-                                        _this.expressionMap.nativeParameters[parameterName + realParameterValueIndex] = realParameterValue;
+                                        _this.expressionMap.nativeParameters[parameterName + (parameterBaseCount + realParameterValueIndex)] = realParameterValue;
                                         parameterIndex_1++;
-                                        parameters_1.push(_this.connection.driver.createParameter(parameterName + realParameterValueIndex, parameterIndex_1 - 1));
+                                        parameters_1.push(_this.connection.driver.createParameter(parameterName + (parameterBaseCount + realParameterValueIndex), parameterIndex_1 - 1));
                                     });
                                 }
                                 return parameterValue.toSql(_this.connection, aliasPath, parameters_1);

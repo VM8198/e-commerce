@@ -1,4 +1,5 @@
 import * as tslib_1 from "tslib";
+import { MysqlDriver } from "../driver/mysql/MysqlDriver";
 import { ColumnMetadata } from "../metadata/ColumnMetadata";
 import { EntityMetadata } from "../metadata/EntityMetadata";
 import { ForeignKeyMetadata } from "../metadata/ForeignKeyMetadata";
@@ -54,7 +55,11 @@ var JunctionEntityMetadataBuilder = /** @class */ (function () {
                     propertyName: columnName,
                     options: {
                         name: columnName,
-                        length: referencedColumn.length,
+                        length: !referencedColumn.length
+                            && (_this.connection.driver instanceof MysqlDriver)
+                            && (referencedColumn.generationStrategy === "uuid" || referencedColumn.type === "uuid")
+                            ? "36"
+                            : referencedColumn.length,
                         width: referencedColumn.width,
                         type: referencedColumn.type,
                         precision: referencedColumn.precision,
@@ -86,7 +91,11 @@ var JunctionEntityMetadataBuilder = /** @class */ (function () {
                     mode: "virtual",
                     propertyName: columnName,
                     options: {
-                        length: inverseReferencedColumn.length,
+                        length: !inverseReferencedColumn.length
+                            && (_this.connection.driver instanceof MysqlDriver)
+                            && (inverseReferencedColumn.generationStrategy === "uuid" || inverseReferencedColumn.type === "uuid")
+                            ? "36"
+                            : inverseReferencedColumn.length,
                         type: inverseReferencedColumn.type,
                         precision: inverseReferencedColumn.precision,
                         scale: inverseReferencedColumn.scale,
@@ -125,21 +134,21 @@ var JunctionEntityMetadataBuilder = /** @class */ (function () {
             }),
         ];
         // create junction table indices
-        entityMetadata.indices = [
+        entityMetadata.ownIndices = [
             new IndexMetadata({
                 entityMetadata: entityMetadata,
                 columns: junctionColumns,
                 args: {
-                    target: "",
-                    unique: false
+                    target: entityMetadata.target,
+                    synchronize: true
                 }
             }),
             new IndexMetadata({
                 entityMetadata: entityMetadata,
                 columns: inverseJunctionColumns,
                 args: {
-                    target: "",
-                    unique: false
+                    target: entityMetadata.target,
+                    synchronize: true
                 }
             })
         ];

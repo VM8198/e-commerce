@@ -15,10 +15,10 @@ var TableIndex = /** @class */ (function () {
         this.columnNames = [];
         this.name = options.name;
         this.columnNames = options.columnNames;
-        this.isUnique = options.isUnique;
-        this.isSpatial = options.isSpatial;
-        this.isFulltext = options.isFulltext;
-        this.where = options.where;
+        this.isUnique = !!options.isUnique;
+        this.isSpatial = !!options.isSpatial;
+        this.isFulltext = !!options.isFulltext;
+        this.where = options.where ? options.where : "";
     }
     // -------------------------------------------------------------------------
     // Public Methods

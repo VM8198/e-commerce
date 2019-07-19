@@ -77,50 +77,67 @@ var SqljsDriver = /** @class */ (function (_super) {
      */
     SqljsDriver.prototype.load = function (fileNameOrLocalStorageOrData, checkIfFileOrLocalStorageExists) {
         if (checkIfFileOrLocalStorageExists === void 0) { checkIfFileOrLocalStorageExists = true; }
-        if (typeof fileNameOrLocalStorageOrData === "string") {
-            // content has to be loaded
-            if (PlatformTools.type === "node") {
-                // Node.js
-                // fileNameOrLocalStorageOrData should be a path to the file
-                if (PlatformTools.fileExist(fileNameOrLocalStorageOrData)) {
-                    var database = PlatformTools.readFileSync(fileNameOrLocalStorageOrData);
-                    return this.createDatabaseConnectionWithImport(database);
+        return tslib_1.__awaiter(this, void 0, void 0, function () {
+            var database, localStorageContent;
+            return tslib_1.__generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0:
+                        if (!(typeof fileNameOrLocalStorageOrData === "string")) return [3 /*break*/, 8];
+                        if (!(PlatformTools.type === "node")) return [3 /*break*/, 1];
+                        // Node.js
+                        // fileNameOrLocalStorageOrData should be a path to the file
+                        if (PlatformTools.fileExist(fileNameOrLocalStorageOrData)) {
+                            database = PlatformTools.readFileSync(fileNameOrLocalStorageOrData);
+                            return [2 /*return*/, this.createDatabaseConnectionWithImport(database)];
+                        }
+                        else if (checkIfFileOrLocalStorageExists) {
+                            throw new Error("File " + fileNameOrLocalStorageOrData + " does not exist");
+                        }
+                        else {
+                            // File doesn't exist and checkIfFileOrLocalStorageExists is set to false.
+                            // Therefore open a database without importing an existing file.
+                            // File will be written on first write operation.
+                            return [2 /*return*/, this.createDatabaseConnectionWithImport()];
+                        }
+                        return [3 /*break*/, 7];
+                    case 1:
+                        localStorageContent = null;
+                        if (!this.options.useLocalForage) return [3 /*break*/, 5];
+                        if (!window.localforage) return [3 /*break*/, 3];
+                        return [4 /*yield*/, window.localforage.getItem(fileNameOrLocalStorageOrData)];
+                    case 2:
+                        localStorageContent = _a.sent();
+                        return [3 /*break*/, 4];
+                    case 3: throw new Error("localforage is not defined - please import localforage.js into your site");
+                    case 4: return [3 /*break*/, 6];
+                    case 5:
+                        localStorageContent = PlatformTools.getGlobalVariable().localStorage.getItem(fileNameOrLocalStorageOrData);
+                        _a.label = 6;
+                    case 6:
+                        if (localStorageContent != null) {
+                            // localStorage value exists.
+                            return [2 /*return*/, this.createDatabaseConnectionWithImport(JSON.parse(localStorageContent))];
+                        }
+                        else if (checkIfFileOrLocalStorageExists) {
+                            throw new Error("File " + fileNameOrLocalStorageOrData + " does not exist");
+                        }
+                        else {
+                            // localStorage value doesn't exist and checkIfFileOrLocalStorageExists is set to false.
+                            // Therefore open a database without importing anything.
+                            // localStorage value will be written on first write operation.
+                            return [2 /*return*/, this.createDatabaseConnectionWithImport()];
+                        }
+                        _a.label = 7;
+                    case 7: return [3 /*break*/, 9];
+                    case 8: return [2 /*return*/, this.createDatabaseConnectionWithImport(fileNameOrLocalStorageOrData)];
+                    case 9: return [2 /*return*/];
                 }
-                else if (checkIfFileOrLocalStorageExists) {
-                    throw new Error("File " + fileNameOrLocalStorageOrData + " does not exist");
-                }
-                else {
-                    // File doesn't exist and checkIfFileOrLocalStorageExists is set to false.
-                    // Therefore open a database without importing an existing file.
-                    // File will be written on first write operation.
-                    return this.createDatabaseConnectionWithImport();
-                }
-            }
-            else {
-                // browser
-                // fileNameOrLocalStorageOrData should be a local storage key
-                var localStorageContent = PlatformTools.getGlobalVariable().localStorage.getItem(fileNameOrLocalStorageOrData);
-                if (localStorageContent != null) {
-                    // localStorage value exists.
-                    return this.createDatabaseConnectionWithImport(JSON.parse(localStorageContent));
-                }
-                else if (checkIfFileOrLocalStorageExists) {
-                    throw new Error("File " + fileNameOrLocalStorageOrData + " does not exist");
-                }
-                else {
-                    // localStorage value doesn't exist and checkIfFileOrLocalStorageExists is set to false.
-                    // Therefore open a database without importing anything.
-                    // localStorage value will be written on first write operation.
-                    return this.createDatabaseConnectionWithImport();
-                }
-            }
-        }
-        else {
-            return this.createDatabaseConnectionWithImport(fileNameOrLocalStorageOrData);
-        }
+            });
+        });
     };
     /**
-     * Saved the current database to the given file (Node.js) or local storage key (browser).
+     * Saved the current database to the given file (Node.js), local storage key (browser) or
+     * indexedDB key (browser with enabled useLocalForage option).
      * If no location path is given, the location path in the options (if specified) will be used.
      */
     SqljsDriver.prototype.save = function (location) {
@@ -151,13 +168,22 @@ var SqljsDriver = /** @class */ (function (_super) {
                     case 3:
                         e_1 = _a.sent();
                         throw new Error("Could not save database, error: " + e_1);
-                    case 4: return [3 /*break*/, 6];
+                    case 4: return [3 /*break*/, 10];
                     case 5:
                         database = this.databaseConnection.export();
                         databaseArray = [].slice.call(database);
+                        if (!this.options.useLocalForage) return [3 /*break*/, 9];
+                        if (!window.localforage) return [3 /*break*/, 7];
+                        return [4 /*yield*/, window.localforage.setItem(path, JSON.stringify(databaseArray))];
+                    case 6:
+                        _a.sent();
+                        return [3 /*break*/, 8];
+                    case 7: throw new Error("localforage is not defined - please import localforage.js into your site");
+                    case 8: return [3 /*break*/, 10];
+                    case 9:
                         PlatformTools.getGlobalVariable().localStorage.setItem(path, JSON.stringify(databaseArray));
-                        _a.label = 6;
-                    case 6: return [2 /*return*/];
+                        _a.label = 10;
+                    case 10: return [2 /*return*/];
                 }
             });
         });
@@ -165,7 +191,8 @@ var SqljsDriver = /** @class */ (function (_super) {
     /**
      * This gets called by the QueryRunner when a change to the database is made.
      * If a custom autoSaveCallback is specified, it get's called with the database as Uint8Array,
-     * otherwise the save method is called which saves it to file (Node.js) or localstorage (browser).
+     * otherwise the save method is called which saves it to file (Node.js), local storage (browser)
+     * or indexedDB (browser with enabled useLocalForage option).
      */
     SqljsDriver.prototype.autoSave = function () {
         return tslib_1.__awaiter(this, void 0, void 0, function () {
@@ -234,24 +261,38 @@ var SqljsDriver = /** @class */ (function (_super) {
      */
     SqljsDriver.prototype.createDatabaseConnectionWithImport = function (database) {
         return tslib_1.__awaiter(this, void 0, void 0, function () {
+            var isLegacyVersion, sqlite, _a;
             var _this = this;
-            return tslib_1.__generator(this, function (_a) {
-                if (database && database.length > 0) {
-                    this.databaseConnection = new this.sqlite.Database(database);
-                }
-                else {
-                    this.databaseConnection = new this.sqlite.Database();
-                }
-                // Enable foreign keys for database
-                return [2 /*return*/, new Promise(function (ok, fail) {
-                        try {
-                            _this.databaseConnection.exec("PRAGMA foreign_keys = ON;");
-                            ok(_this.databaseConnection);
+            return tslib_1.__generator(this, function (_b) {
+                switch (_b.label) {
+                    case 0:
+                        isLegacyVersion = typeof this.sqlite.Database === "function";
+                        if (!isLegacyVersion) return [3 /*break*/, 1];
+                        _a = this.sqlite;
+                        return [3 /*break*/, 3];
+                    case 1: return [4 /*yield*/, this.sqlite()];
+                    case 2:
+                        _a = _b.sent();
+                        _b.label = 3;
+                    case 3:
+                        sqlite = _a;
+                        if (database && database.length > 0) {
+                            this.databaseConnection = new sqlite.Database(database);
                         }
-                        catch (e) {
-                            fail(e);
+                        else {
+                            this.databaseConnection = new sqlite.Database();
                         }
-                    })];
+                        // Enable foreign keys for database
+                        return [2 /*return*/, new Promise(function (ok, fail) {
+                                try {
+                                    _this.databaseConnection.exec("PRAGMA foreign_keys = ON;");
+                                    ok(_this.databaseConnection);
+                                }
+                                catch (e) {
+                                    fail(e);
+                                }
+                            })];
+                }
             });
         });
     };

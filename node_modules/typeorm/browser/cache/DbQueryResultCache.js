@@ -13,7 +13,9 @@ var DbQueryResultCache = /** @class */ (function () {
     function DbQueryResultCache(connection) {
         this.connection = connection;
         var options = this.connection.driver.options;
-        this.queryResultCacheTable = this.connection.driver.buildTableName("query-result-cache", options.schema, options.database);
+        var cacheOptions = typeof this.connection.options.cache === "object" ? this.connection.options.cache : {};
+        var cacheTableName = cacheOptions.tableName || "query-result-cache";
+        this.queryResultCacheTable = this.connection.driver.buildTableName(cacheTableName, options.schema, options.database);
     }
     // -------------------------------------------------------------------------
     // Public Methods
@@ -136,7 +138,8 @@ var DbQueryResultCache = /** @class */ (function () {
      * Checks if cache is expired or not.
      */
     DbQueryResultCache.prototype.isExpired = function (savedCache) {
-        return ((typeof savedCache.time === "string" ? parseInt(savedCache.time) : savedCache.time) + savedCache.duration) < new Date().getTime();
+        var duration = typeof savedCache.duration === "string" ? parseInt(savedCache.duration) : savedCache.duration;
+        return ((typeof savedCache.time === "string" ? parseInt(savedCache.time) : savedCache.time) + duration) < new Date().getTime();
     };
     /**
      * Stores given query result in the cache.

@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = require("tslib");
+var Query_1 = require("../driver/Query");
 var SqlInMemory_1 = require("../driver/SqlInMemory");
 var PromiseUtils_1 = require("../util/PromiseUtils");
 var BaseQueryRunner = /** @class */ (function () {
@@ -26,6 +27,10 @@ var BaseQueryRunner = /** @class */ (function () {
          * All synchronized tables in the database.
          */
         this.loadedTables = [];
+        /**
+         * All synchronized views in the database.
+         */
+        this.loadedViews = [];
         /**
          * Indicates if special query runner mode in which sql queries won't be executed is enabled.
          */
@@ -75,6 +80,42 @@ var BaseQueryRunner = /** @class */ (function () {
         });
     };
     /**
+     * Loads given view's data from the database.
+     */
+    BaseQueryRunner.prototype.getView = function (viewPath) {
+        return tslib_1.__awaiter(this, void 0, void 0, function () {
+            var _a;
+            return tslib_1.__generator(this, function (_b) {
+                switch (_b.label) {
+                    case 0:
+                        _a = this;
+                        return [4 /*yield*/, this.loadViews([viewPath])];
+                    case 1:
+                        _a.loadedViews = _b.sent();
+                        return [2 /*return*/, this.loadedViews.length > 0 ? this.loadedViews[0] : undefined];
+                }
+            });
+        });
+    };
+    /**
+     * Loads given view's data from the database.
+     */
+    BaseQueryRunner.prototype.getViews = function (viewPaths) {
+        return tslib_1.__awaiter(this, void 0, void 0, function () {
+            var _a;
+            return tslib_1.__generator(this, function (_b) {
+                switch (_b.label) {
+                    case 0:
+                        _a = this;
+                        return [4 /*yield*/, this.loadViews(viewPaths)];
+                    case 1:
+                        _a.loadedViews = _b.sent();
+                        return [2 /*return*/, this.loadedViews];
+                }
+            });
+        });
+    };
+    /**
      * Enables special query runner mode in which sql queries won't be executed,
      * instead they will be memorized into a special variable inside query runner.
      * You can get memorized sql using getMemorySql() method.
@@ -113,7 +154,7 @@ var BaseQueryRunner = /** @class */ (function () {
             var _this = this;
             return tslib_1.__generator(this, function (_a) {
                 switch (_a.label) {
-                    case 0: return [4 /*yield*/, PromiseUtils_1.PromiseUtils.runInSequence(this.sqlInMemory.upQueries, function (downQuery) { return _this.query(downQuery); })];
+                    case 0: return [4 /*yield*/, PromiseUtils_1.PromiseUtils.runInSequence(this.sqlInMemory.upQueries, function (upQuery) { return _this.query(upQuery.query, upQuery.parameters); })];
                     case 1:
                         _a.sent();
                         return [2 /*return*/];
@@ -129,7 +170,7 @@ var BaseQueryRunner = /** @class */ (function () {
             var _this = this;
             return tslib_1.__generator(this, function (_a) {
                 switch (_a.label) {
-                    case 0: return [4 /*yield*/, PromiseUtils_1.PromiseUtils.runInSequence(this.sqlInMemory.downQueries.reverse(), function (downQuery) { return _this.query(downQuery); })];
+                    case 0: return [4 /*yield*/, PromiseUtils_1.PromiseUtils.runInSequence(this.sqlInMemory.downQueries.reverse(), function (downQuery) { return _this.query(downQuery.query, downQuery.parameters); })];
                     case 1:
                         _a.sent();
                         return [2 /*return*/];
@@ -140,6 +181,33 @@ var BaseQueryRunner = /** @class */ (function () {
     // -------------------------------------------------------------------------
     // Protected Methods
     // -------------------------------------------------------------------------
+    /**
+     * Gets view from previously loaded views, otherwise loads it from database.
+     */
+    BaseQueryRunner.prototype.getCachedView = function (viewName) {
+        return tslib_1.__awaiter(this, void 0, void 0, function () {
+            var view, foundViews;
+            return tslib_1.__generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0:
+                        view = this.loadedViews.find(function (view) { return view.name === viewName; });
+                        if (view)
+                            return [2 /*return*/, view];
+                        return [4 /*yield*/, this.loadViews([viewName])];
+                    case 1:
+                        foundViews = _a.sent();
+                        if (foundViews.length > 0) {
+                            this.loadedViews.push(foundViews[0]);
+                            return [2 /*return*/, foundViews[0]];
+                        }
+                        else {
+                            throw new Error("View \"" + viewName + "\" does not exist.");
+                        }
+                        return [2 /*return*/];
+                }
+            });
+        });
+    };
     /**
      * Gets table from previously loaded tables, otherwise loads it from database.
      */
@@ -182,6 +250,10 @@ var BaseQueryRunner = /** @class */ (function () {
             foundTable.justCreated = changedTable.justCreated;
             foundTable.engine = changedTable.engine;
         }
+    };
+    BaseQueryRunner.prototype.getTypeormMetadataTableName = function () {
+        var options = this.connection.driver.options;
+        return this.connection.driver.buildTableName("typeorm_metadata", options.schema, options.database);
     };
     /**
      * Checks if at least one of column properties was changed.
@@ -309,16 +381,16 @@ var BaseQueryRunner = /** @class */ (function () {
             return tslib_1.__generator(this, function (_c) {
                 switch (_c.label) {
                     case 0:
-                        if (typeof upQueries === "string")
+                        if (upQueries instanceof Query_1.Query)
                             upQueries = [upQueries];
-                        if (typeof downQueries === "string")
+                        if (downQueries instanceof Query_1.Query)
                             downQueries = [downQueries];
                         (_a = this.sqlInMemory.upQueries).push.apply(_a, tslib_1.__spread(upQueries));
                         (_b = this.sqlInMemory.downQueries).push.apply(_b, tslib_1.__spread(downQueries));
                         // if sql-in-memory mode is enabled then simply store sql in memory and return
                         if (this.sqlMemoryMode === true)
                             return [2 /*return*/, Promise.resolve()];
-                        return [4 /*yield*/, PromiseUtils_1.PromiseUtils.runInSequence(upQueries, function (upQuery) { return _this.query(upQuery); })];
+                        return [4 /*yield*/, PromiseUtils_1.PromiseUtils.runInSequence(upQueries, function (upQuery) { return _this.query(upQuery.query, upQuery.parameters); })];
                     case 1:
                         _c.sent();
                         return [2 /*return*/];

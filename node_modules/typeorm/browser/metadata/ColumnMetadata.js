@@ -3,6 +3,7 @@ import { OrmUtils } from "../util/OrmUtils";
 import { MongoDriver } from "../driver/mongodb/MongoDriver";
 import { PromiseUtils } from "../util/PromiseUtils";
 import { FindOperator } from "../find-options/FindOperator";
+import { ApplyValueTransformers } from "../util/ApplyValueTransformers";
 /**
  * This metadata contains all information about entity's column.
  */
@@ -32,9 +33,13 @@ var ColumnMetadata = /** @class */ (function () {
          */
         this.isSelect = true;
         /**
-         * Indicates if column is protected from updates or not.
+         * Indicates if column is inserted by default or not.
          */
-        this.isReadonly = false;
+        this.isInsert = true;
+        /**
+         * Indicates if column allows updates or not.
+         */
+        this.isUpdate = true;
         /**
          * Column comment.
          * This feature is not supported by all databases.
@@ -123,8 +128,12 @@ var ColumnMetadata = /** @class */ (function () {
             this.isNullable = options.args.options.nullable;
         if (options.args.options.select !== undefined)
             this.isSelect = options.args.options.select;
+        if (options.args.options.insert !== undefined)
+            this.isInsert = options.args.options.insert;
+        if (options.args.options.update !== undefined)
+            this.isUpdate = options.args.options.update;
         if (options.args.options.readonly !== undefined)
-            this.isReadonly = options.args.options.readonly;
+            this.isUpdate = !options.args.options.readonly;
         if (options.args.options.comment)
             this.comment = options.args.options.comment;
         if (options.args.options.default !== undefined)
@@ -232,7 +241,7 @@ var ColumnMetadata = /** @class */ (function () {
                     return map;
                 }
                 // this is bugfix for #720 when increment number is bigint we need to make sure its a string
-                if (_this.generationStrategy === "increment" && _this.type === "bigint")
+                if ((_this.generationStrategy === "increment" || _this.generationStrategy === "rowid") && _this.type === "bigint")
                     value = String(value);
                 map[useDatabaseName ? _this.databaseName : _this.propertyName] = value;
                 return map;
@@ -241,7 +250,7 @@ var ColumnMetadata = /** @class */ (function () {
         }
         else { // no embeds - no problems. Simply return column property name and its value of the entity
             // this is bugfix for #720 when increment number is bigint we need to make sure its a string
-            if (this.generationStrategy === "increment" && this.type === "bigint")
+            if ((this.generationStrategy === "increment" || this.generationStrategy === "rowid") && this.type === "bigint")
                 value = String(value);
             return _a = {}, _a[useDatabaseName ? this.databaseName : this.propertyName] = value, _a;
         }
@@ -373,7 +382,7 @@ var ColumnMetadata = /** @class */ (function () {
             }
         }
         if (transform && this.transformer)
-            value = this.transformer.to(value);
+            value = ApplyValueTransformers.transformTo(this.transformer, value);
         return value;
     };
     /**

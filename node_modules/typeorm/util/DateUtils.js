@@ -147,6 +147,18 @@ var DateUtils = /** @class */ (function () {
     DateUtils.stringToSimpleJson = function (value) {
         return typeof value === "string" ? JSON.parse(value) : value;
     };
+    DateUtils.simpleEnumToString = function (value) {
+        return "" + value;
+    };
+    DateUtils.stringToSimpleEnum = function (value, columnMetadata) {
+        if (columnMetadata.enum
+            && !isNaN(value)
+            && columnMetadata.enum.indexOf(parseInt(value)) >= 0) {
+            // convert to number if that exists in poosible enum options
+            value = parseInt(value);
+        }
+        return value;
+    };
     // -------------------------------------------------------------------------
     // Private Static Methods
     // -------------------------------------------------------------------------

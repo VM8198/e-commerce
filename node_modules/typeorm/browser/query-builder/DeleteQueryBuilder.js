@@ -1,10 +1,13 @@
 import * as tslib_1 from "tslib";
+import { CockroachDriver } from "../driver/cockroachdb/CockroachDriver";
+import { OracleDriver } from "../driver/oracle/OracleDriver";
 import { QueryBuilder } from "./QueryBuilder";
 import { SqlServerDriver } from "../driver/sqlserver/SqlServerDriver";
 import { PostgresDriver } from "../driver/postgres/PostgresDriver";
 import { DeleteResult } from "./result/DeleteResult";
 import { ReturningStatementNotSupportedError } from "../error/ReturningStatementNotSupportedError";
 import { SqljsDriver } from "../driver/sqljs/SqljsDriver";
+import { MysqlDriver } from "../driver/mysql/MysqlDriver";
 import { BroadcasterResult } from "../subscriber/BroadcasterResult";
 import { EntitySchema } from "../index";
 /**
@@ -35,7 +38,7 @@ var DeleteQueryBuilder = /** @class */ (function (_super) {
      */
     DeleteQueryBuilder.prototype.execute = function () {
         return tslib_1.__awaiter(this, void 0, void 0, function () {
-            var _a, sql, parameters, queryRunner, transactionStartedByUs, broadcastResult, deleteResult, result, broadcastResult, error_1, rollbackError_1;
+            var _a, sql, parameters, queryRunner, transactionStartedByUs, broadcastResult, deleteResult, result, driver, broadcastResult, error_1, rollbackError_1;
             return tslib_1.__generator(this, function (_b) {
                 switch (_b.label) {
                     case 0:
@@ -65,25 +68,21 @@ var DeleteQueryBuilder = /** @class */ (function (_super) {
                         return [4 /*yield*/, queryRunner.query(sql, parameters)];
                     case 6:
                         result = _b.sent();
-                        switch (queryRunner.connection.name) {
-                            case "mysql":
-                            case "mariadb": {
-                                deleteResult.raw = result;
-                                deleteResult.affected = result.affectedRows;
-                                break;
-                            }
-                            case "mssql":
-                            case "postgres": {
-                                deleteResult.raw = result[0] ? result[0] : null;
-                                // don't return 0 because it could confuse. null means that we did not receive this value
-                                deleteResult.affected = typeof result[1] === "number" ? result[1] : null;
-                                break;
-                            }
-                            // sqlite & sqljs doesn't return anything
-                            case "sqlite":
-                            case "sqljs":
-                            default:
-                                deleteResult.raw = result;
+                        driver = queryRunner.connection.driver;
+                        if (driver instanceof MysqlDriver) {
+                            deleteResult.raw = result;
+                            deleteResult.affected = result.affectedRows;
+                        }
+                        else if (driver instanceof SqlServerDriver || driver instanceof PostgresDriver || driver instanceof CockroachDriver) {
+                            deleteResult.raw = result[0] ? result[0] : null;
+                            // don't return 0 because it could confuse. null means that we did not receive this value
+                            deleteResult.affected = typeof result[1] === "number" ? result[1] : null;
+                        }
+                        else if (driver instanceof OracleDriver) {
+                            deleteResult.affected = result;
+                        }
+                        else {
+                            deleteResult.raw = result;
                         }
                         if (!(this.expressionMap.callListeners === true && this.expressionMap.mainAlias.hasMetadata)) return [3 /*break*/, 8];
                         broadcastResult = new BroadcasterResult();
@@ -224,7 +223,7 @@ var DeleteQueryBuilder = /** @class */ (function (_super) {
         var tableName = this.getTableName(this.getMainTableName());
         var whereExpression = this.createWhereExpression();
         var returningExpression = this.createReturningExpression();
-        if (returningExpression && this.connection.driver instanceof PostgresDriver) {
+        if (returningExpression && (this.connection.driver instanceof PostgresDriver || this.connection.driver instanceof CockroachDriver)) {
             return "DELETE FROM " + tableName + whereExpression + " RETURNING " + returningExpression;
         }
         else if (returningExpression !== "" && this.connection.driver instanceof SqlServerDriver) {

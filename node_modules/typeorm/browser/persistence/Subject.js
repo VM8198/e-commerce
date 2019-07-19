@@ -16,7 +16,6 @@ var Subject = /** @class */ (function () {
     // -------------------------------------------------------------------------
     function Subject(options) {
         var _a;
-        var _this = this;
         /**
          * Subject identifier.
          * This identifier is not limited to table entity primary columns.
@@ -77,20 +76,7 @@ var Subject = /** @class */ (function () {
             this.identifier = options.identifier;
         if (options.changeMaps !== undefined)
             (_a = this.changeMaps).push.apply(_a, tslib_1.__spread(options.changeMaps));
-        if (this.entity) {
-            this.entityWithFulfilledIds = Object.assign({}, this.entity);
-            if (this.parentSubject) {
-                this.metadata.primaryColumns.forEach(function (primaryColumn) {
-                    if (primaryColumn.relationMetadata && primaryColumn.relationMetadata.inverseEntityMetadata === _this.parentSubject.metadata) {
-                        primaryColumn.setEntityValue(_this.entityWithFulfilledIds, _this.parentSubject.entity);
-                    }
-                });
-            }
-            this.identifier = this.metadata.getEntityIdMap(this.entityWithFulfilledIds);
-        }
-        else if (this.databaseEntity) {
-            this.identifier = this.metadata.getEntityIdMap(this.databaseEntity);
-        }
+        this.recompute();
     }
     Object.defineProperty(Subject.prototype, "mustBeInserted", {
         // -------------------------------------------------------------------------
@@ -182,6 +168,26 @@ var Subject = /** @class */ (function () {
         }, {});
         this.changeMaps = changeMapsWithoutValues;
         return changeSet;
+    };
+    /**
+     * Recomputes entityWithFulfilledIds and identifier when entity changes.
+     */
+    Subject.prototype.recompute = function () {
+        var _this = this;
+        if (this.entity) {
+            this.entityWithFulfilledIds = Object.assign({}, this.entity);
+            if (this.parentSubject) {
+                this.metadata.primaryColumns.forEach(function (primaryColumn) {
+                    if (primaryColumn.relationMetadata && primaryColumn.relationMetadata.inverseEntityMetadata === _this.parentSubject.metadata) {
+                        primaryColumn.setEntityValue(_this.entityWithFulfilledIds, _this.parentSubject.entity);
+                    }
+                });
+            }
+            this.identifier = this.metadata.getEntityIdMap(this.entityWithFulfilledIds);
+        }
+        else if (this.databaseEntity) {
+            this.identifier = this.metadata.getEntityIdMap(this.databaseEntity);
+        }
     };
     return Subject;
 }());

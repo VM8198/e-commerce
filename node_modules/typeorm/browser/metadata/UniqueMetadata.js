@@ -10,7 +10,13 @@ var UniqueMetadata = /** @class */ (function () {
          * Unique columns.
          */
         this.columns = [];
+        /**
+         * Map of column names with order set.
+         * Used only by MongoDB driver.
+         */
+        this.columnNamesWithOrderingMap = {};
         this.entityMetadata = options.entityMetadata;
+        this.embeddedMetadata = options.embeddedMetadata;
         if (options.columns)
             this.columns = options.columns;
         if (options.args) {
@@ -31,24 +37,28 @@ var UniqueMetadata = /** @class */ (function () {
         var map = {};
         // if columns already an array of string then simply return it
         if (this.givenColumnNames) {
-            var columnPropertyNames = [];
+            var columnPropertyPaths = [];
             if (this.givenColumnNames instanceof Array) {
-                columnPropertyNames = this.givenColumnNames;
-                columnPropertyNames.forEach(function (name) { return map[name] = 1; });
+                columnPropertyPaths = this.givenColumnNames.map(function (columnName) {
+                    if (_this.embeddedMetadata)
+                        return _this.embeddedMetadata.propertyPath + "." + columnName;
+                    return columnName;
+                });
+                columnPropertyPaths.forEach(function (propertyPath) { return map[propertyPath] = 1; });
             }
             else {
                 // if columns is a function that returns array of field names then execute it and get columns names from it
                 var columnsFnResult_1 = this.givenColumnNames(this.entityMetadata.propertiesMap);
                 if (columnsFnResult_1 instanceof Array) {
-                    columnPropertyNames = columnsFnResult_1.map(function (i) { return String(i); });
-                    columnPropertyNames.forEach(function (name) { return map[name] = 1; });
+                    columnPropertyPaths = columnsFnResult_1.map(function (i) { return String(i); });
+                    columnPropertyPaths.forEach(function (name) { return map[name] = 1; });
                 }
                 else {
-                    columnPropertyNames = Object.keys(columnsFnResult_1).map(function (i) { return String(i); });
+                    columnPropertyPaths = Object.keys(columnsFnResult_1).map(function (i) { return String(i); });
                     Object.keys(columnsFnResult_1).forEach(function (columnName) { return map[columnName] = columnsFnResult_1[columnName]; });
                 }
             }
-            this.columns = columnPropertyNames.map(function (propertyName) {
+            this.columns = columnPropertyPaths.map(function (propertyName) {
                 var columnWithSameName = _this.entityMetadata.columns.find(function (column) { return column.propertyPath === propertyName; });
                 if (columnWithSameName) {
                     return [columnWithSameName];
@@ -57,10 +67,18 @@ var UniqueMetadata = /** @class */ (function () {
                 if (relationWithSameName) {
                     return relationWithSameName.joinColumns;
                 }
-                throw new Error("Unique constraint " + (_this.givenName ? "\"" + _this.givenName + "\" " : "") + "contains column that is missing in the entity: " + propertyName);
+                var indexName = _this.givenName ? "\"" + _this.givenName + "\" " : "";
+                var entityName = _this.entityMetadata.targetName;
+                throw new Error("Unique constraint " + indexName + "contains column that is missing in the entity (" + entityName + "): " + propertyName);
             })
                 .reduce(function (a, b) { return a.concat(b); });
         }
+        this.columnNamesWithOrderingMap = Object.keys(map).reduce(function (updatedMap, key) {
+            var column = _this.entityMetadata.columns.find(function (column) { return column.propertyPath === key; });
+            if (column)
+                updatedMap[column.databasePath] = map[key];
+            return updatedMap;
+        }, {});
         this.name = this.givenName ? this.givenName : namingStrategy.uniqueConstraintName(this.entityMetadata.tablePath, this.columns.map(function (column) { return column.databaseName; }));
         return this;
     };

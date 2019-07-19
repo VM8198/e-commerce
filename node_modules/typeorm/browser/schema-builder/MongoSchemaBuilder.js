@@ -37,8 +37,22 @@ var MongoSchemaBuilder = /** @class */ (function () {
                         promises = [];
                         this.connection.entityMetadatas.forEach(function (metadata) {
                             metadata.indices.forEach(function (index) {
-                                var options = { name: index.name, unique: index.isUnique, sparse: index.isSparse, background: index.isBackground, expireAfterSeconds: index.expireAfterSeconds };
+                                var options = Object.assign({}, {
+                                    name: index.name,
+                                    unique: index.isUnique,
+                                    sparse: index.isSparse,
+                                    background: index.isBackground
+                                }, index.expireAfterSeconds === undefined
+                                    ? {}
+                                    : { expireAfterSeconds: index.expireAfterSeconds });
                                 promises.push(queryRunner.createCollectionIndex(metadata.tableName, index.columnNamesWithOrderingMap, options));
+                            });
+                            metadata.uniques.forEach(function (unique) {
+                                var options = {
+                                    name: unique.name,
+                                    unique: true,
+                                };
+                                promises.push(queryRunner.createCollectionIndex(metadata.tableName, unique.columnNamesWithOrderingMap, options));
                             });
                         });
                         return [4 /*yield*/, Promise.all(promises)];

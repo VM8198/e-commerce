@@ -1,4 +1,5 @@
 import { FindRelationsNotFoundError } from "../error/FindRelationsNotFoundError";
+import { shorten } from "../util/StringUtils";
 /**
  * Utilities to work with FindOptions.
  */
@@ -23,8 +24,10 @@ var FindOptionsUtils = /** @class */ (function () {
                 possibleOptions.cache instanceof Object ||
                 typeof possibleOptions.cache === "boolean" ||
                 typeof possibleOptions.cache === "number" ||
+                possibleOptions.lock instanceof Object ||
                 possibleOptions.loadRelationIds instanceof Object ||
-                typeof possibleOptions.loadRelationIds === "boolean");
+                typeof possibleOptions.loadRelationIds === "boolean" ||
+                typeof possibleOptions.loadEagerRelations === "boolean");
     };
     /**
      * Checks if given object is really instance of FindManyOptions interface.
@@ -136,6 +139,14 @@ var FindOptionsUtils = /** @class */ (function () {
                 qb.cache(options.cache);
             }
         }
+        if (options.lock) {
+            if (options.lock.mode === "optimistic") {
+                qb.setLock(options.lock.mode, options.lock.version);
+            }
+            else if (options.lock.mode === "pessimistic_read" || options.lock.mode === "pessimistic_write" || options.lock.mode === "dirty_read") {
+                qb.setLock(options.lock.mode);
+            }
+        }
         if (options.loadRelationIds === true) {
             qb.loadAllRelationIds();
         }
@@ -166,13 +177,19 @@ var FindOptionsUtils = /** @class */ (function () {
         }
         // go through all matched relations and add join for them
         matchedBaseRelations.forEach(function (relation) {
+            // generate a relation alias
+            var relationAlias = alias + "__" + relation;
+            // shorten it if needed by the driver
+            if (qb.connection.driver.maxAliasLength && relationAlias.length > qb.connection.driver.maxAliasLength) {
+                relationAlias = shorten(relationAlias);
+            }
             // add a join for the found relation
             var selection = alias + "." + relation;
-            qb.leftJoinAndSelect(selection, alias + "__" + relation);
+            qb.leftJoinAndSelect(selection, relationAlias);
             // join the eager relations of the found relation
             var relMetadata = metadata.relations.find(function (metadata) { return metadata.propertyName === relation; });
             if (relMetadata) {
-                _this.joinEagerRelations(qb, alias + "__" + relation, relMetadata.inverseEntityMetadata);
+                _this.joinEagerRelations(qb, relationAlias, relMetadata.inverseEntityMetadata);
             }
             // remove added relations from the allRelations array, this is needed to find all not found relations at the end
             allRelations.splice(allRelations.indexOf(prefix ? prefix + "." + relation : relation), 1);
@@ -184,7 +201,7 @@ var FindOptionsUtils = /** @class */ (function () {
     FindOptionsUtils.joinEagerRelations = function (qb, alias, metadata) {
         var _this = this;
         metadata.eagerRelations.forEach(function (relation) {
-            var relationAlias = alias + "_" + relation.propertyPath.replace(".", "_");
+            var relationAlias = qb.connection.namingStrategy.eagerJoinRelationAlias(alias, relation.propertyPath);
             qb.leftJoinAndSelect(alias + "." + relation.propertyPath, relationAlias);
             _this.joinEagerRelations(qb, relationAlias, relation.inverseEntityMetadata);
         });

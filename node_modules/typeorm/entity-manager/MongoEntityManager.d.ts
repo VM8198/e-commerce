@@ -1,17 +1,15 @@
 import { Connection } from "../connection/Connection";
 import { EntityManager } from "./EntityManager";
 import { ObjectType } from "../common/ObjectType";
-import { AggregationCursor, BulkWriteOpResultObject, Code, Collection, CollectionAggregationOptions, CollectionBluckWriteOptions, CollectionInsertManyOptions, CollectionInsertOneOptions, CollectionOptions, CollStats, CommandCursor, Cursor, DeleteWriteOpResultObject, FindAndModifyWriteOpResultObject, FindOneAndReplaceOption, GeoHaystackSearchOptions, GeoNearOptions, InsertOneWriteOpResult, InsertWriteOpResult, MapReduceOptions, MongoCountPreferences, MongodbIndexOptions, ObjectID, OrderedBulkOperation, ParallelCollectionScanOptions, ReadPreference, ReplaceOneOptions, UnorderedBulkOperation, UpdateWriteOpResult } from "../driver/mongodb/typings";
+import { AggregationCursor, BulkWriteOpResultObject, ChangeStream, ChangeStreamOptions, Code, Collection, CollectionAggregationOptions, CollectionBulkWriteOptions, CollectionInsertManyOptions, CollectionInsertOneOptions, CollectionOptions, CollStats, CommandCursor, Cursor, DeleteWriteOpResultObject, FindAndModifyWriteOpResultObject, FindOneAndReplaceOption, GeoHaystackSearchOptions, GeoNearOptions, InsertOneWriteOpResult, InsertWriteOpResult, MapReduceOptions, MongoCountPreferences, MongodbIndexOptions, ObjectID, OrderedBulkOperation, ParallelCollectionScanOptions, ReadPreference, ReplaceOneOptions, UnorderedBulkOperation, UpdateWriteOpResult } from "../driver/mongodb/typings";
 import { ObjectLiteral } from "../common/ObjectLiteral";
 import { MongoQueryRunner } from "../driver/mongodb/MongoQueryRunner";
 import { FindManyOptions } from "../find-options/FindManyOptions";
 import { FindOneOptions } from "../find-options/FindOneOptions";
 import { DeepPartial } from "../common/DeepPartial";
 import { QueryDeepPartialEntity } from "../query-builder/QueryPartialEntity";
-import { SaveOptions } from "../repository/SaveOptions";
 import { InsertResult } from "../query-builder/result/InsertResult";
 import { UpdateResult } from "../query-builder/result/UpdateResult";
-import { RemoveOptions } from "../repository/RemoveOptions";
 import { DeleteResult } from "../query-builder/result/DeleteResult";
 import { EntityMetadata } from "../metadata/EntityMetadata";
 import { EntitySchema, FindConditions } from "../index";
@@ -53,21 +51,21 @@ export declare class MongoEntityManager extends EntityManager {
      * Does not check if entity exist in the database, so query will fail if duplicate entity is being inserted.
      * You can execute bulk inserts using this method.
      */
-    insert<Entity>(target: ObjectType<Entity> | EntitySchema<Entity> | string, entity: QueryDeepPartialEntity<Entity> | QueryDeepPartialEntity<Entity>[], options?: SaveOptions): Promise<InsertResult>;
+    insert<Entity>(target: ObjectType<Entity> | EntitySchema<Entity> | string, entity: QueryDeepPartialEntity<Entity> | QueryDeepPartialEntity<Entity>[]): Promise<InsertResult>;
     /**
      * Updates entity partially. Entity can be found by a given conditions.
      * Unlike save method executes a primitive operation without cascades, relations and other operations included.
      * Executes fast and efficient UPDATE query.
      * Does not check if entity exist in the database.
      */
-    update<Entity>(target: ObjectType<Entity> | EntitySchema<Entity> | string, criteria: string | string[] | number | number[] | Date | Date[] | ObjectID | ObjectID[] | FindConditions<Entity>, partialEntity: QueryDeepPartialEntity<Entity>, options?: SaveOptions): Promise<UpdateResult>;
+    update<Entity>(target: ObjectType<Entity> | EntitySchema<Entity> | string, criteria: string | string[] | number | number[] | Date | Date[] | ObjectID | ObjectID[] | FindConditions<Entity>, partialEntity: QueryDeepPartialEntity<Entity>): Promise<UpdateResult>;
     /**
      * Deletes entities by a given conditions.
      * Unlike save method executes a primitive operation without cascades, relations and other operations included.
      * Executes fast and efficient DELETE query.
      * Does not check if entity exist in the database.
      */
-    delete<Entity>(target: ObjectType<Entity> | EntitySchema<Entity> | string, criteria: string | string[] | number | number[] | Date | Date[] | ObjectID | ObjectID[] | FindConditions<Entity>, options?: RemoveOptions): Promise<DeleteResult>;
+    delete<Entity>(target: ObjectType<Entity> | EntitySchema<Entity> | string, criteria: string | string[] | number | number[] | Date | Date[] | ObjectID | ObjectID[] | FindConditions<Entity>): Promise<DeleteResult>;
     /**
      * Creates a cursor for a query that can be used to iterate over results from MongoDB.
      */
@@ -89,7 +87,7 @@ export declare class MongoEntityManager extends EntityManager {
     /**
      * Perform a bulkWrite operation without a fluent API.
      */
-    bulkWrite<Entity>(entityClassOrName: ObjectType<Entity> | EntitySchema<Entity> | string, operations: ObjectLiteral[], options?: CollectionBluckWriteOptions): Promise<BulkWriteOpResultObject>;
+    bulkWrite<Entity>(entityClassOrName: ObjectType<Entity> | EntitySchema<Entity> | string, operations: ObjectLiteral[], options?: CollectionBulkWriteOptions): Promise<BulkWriteOpResultObject>;
     /**
      * Count number of matching documents in the db to a query.
      */
@@ -215,7 +213,7 @@ export declare class MongoEntityManager extends EntityManager {
      */
     rename<Entity>(entityClassOrName: ObjectType<Entity> | EntitySchema<Entity> | string, newName: string, options?: {
         dropTarget?: boolean;
-    }): Promise<Collection>;
+    }): Promise<Collection<any>>;
     /**
      * Replace a document on MongoDB.
      */
@@ -226,6 +224,7 @@ export declare class MongoEntityManager extends EntityManager {
     stats<Entity>(entityClassOrName: ObjectType<Entity> | EntitySchema<Entity> | string, options?: {
         scale: number;
     }): Promise<CollStats>;
+    watch<Entity>(entityClassOrName: ObjectType<Entity> | EntitySchema<Entity> | string, pipeline?: Object[], options?: ChangeStreamOptions): ChangeStream;
     /**
      * Update multiple documents on MongoDB.
      */

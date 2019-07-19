@@ -21,6 +21,7 @@ tslib_1.__exportStar(require("./decorator/columns/PrimaryGeneratedColumn"), expo
 tslib_1.__exportStar(require("./decorator/columns/PrimaryColumn"), exports);
 tslib_1.__exportStar(require("./decorator/columns/UpdateDateColumn"), exports);
 tslib_1.__exportStar(require("./decorator/columns/VersionColumn"), exports);
+tslib_1.__exportStar(require("./decorator/columns/ViewColumn"), exports);
 tslib_1.__exportStar(require("./decorator/columns/ObjectIdColumn"), exports);
 tslib_1.__exportStar(require("./decorator/listeners/AfterInsert"), exports);
 tslib_1.__exportStar(require("./decorator/listeners/AfterLoad"), exports);
@@ -41,6 +42,7 @@ tslib_1.__exportStar(require("./decorator/relations/RelationId"), exports);
 tslib_1.__exportStar(require("./decorator/entity/Entity"), exports);
 tslib_1.__exportStar(require("./decorator/entity/ChildEntity"), exports);
 tslib_1.__exportStar(require("./decorator/entity/TableInheritance"), exports);
+tslib_1.__exportStar(require("./decorator/entity-view/ViewEntity"), exports);
 tslib_1.__exportStar(require("./decorator/transaction/Transaction"), exports);
 tslib_1.__exportStar(require("./decorator/transaction/TransactionManager"), exports);
 tslib_1.__exportStar(require("./decorator/transaction/TransactionRepository"), exports);

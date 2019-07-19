@@ -98,7 +98,9 @@ var IndexMetadata = /** @class */ (function () {
                 if (relationWithSameName) {
                     return relationWithSameName.joinColumns;
                 }
-                throw new Error("Index " + (_this.givenName ? "\"" + _this.givenName + "\" " : "") + "contains column that is missing in the entity: " + propertyPath);
+                var indexName = _this.givenName ? "\"" + _this.givenName + "\" " : "";
+                var entityName = _this.entityMetadata.targetName;
+                throw new Error("Index " + indexName + "contains column that is missing in the entity (" + entityName + "): " + propertyPath);
             })
                 .reduce(function (a, b) { return a.concat(b); });
         }

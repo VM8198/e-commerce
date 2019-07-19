@@ -89,6 +89,11 @@ export declare class MysqlDriver implements Driver {
      * Used in the cases when length/precision/scale is not specified by user.
      */
     dataTypeDefaults: DataTypeDefaults;
+    /**
+     * Max length allowed by MySQL for aliases.
+     * @see https://dev.mysql.com/doc/refman/5.5/en/identifiers.html
+     */
+    maxAliasLength: number;
     constructor(connection: Connection);
     /**
      * Performs connection to the database.

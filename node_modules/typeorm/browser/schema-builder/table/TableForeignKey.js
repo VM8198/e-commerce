@@ -21,6 +21,7 @@ var TableForeignKey = /** @class */ (function () {
         this.referencedTableName = options.referencedTableName;
         this.onDelete = options.onDelete;
         this.onUpdate = options.onUpdate;
+        this.deferrable = options.deferrable;
     }
     // -------------------------------------------------------------------------
     // Public Methods
@@ -35,7 +36,8 @@ var TableForeignKey = /** @class */ (function () {
             referencedColumnNames: tslib_1.__spread(this.referencedColumnNames),
             referencedTableName: this.referencedTableName,
             onDelete: this.onDelete,
-            onUpdate: this.onUpdate
+            onUpdate: this.onUpdate,
+            deferrable: this.deferrable,
         });
     };
     // -------------------------------------------------------------------------
@@ -51,7 +53,8 @@ var TableForeignKey = /** @class */ (function () {
             referencedColumnNames: metadata.referencedColumnNames,
             referencedTableName: metadata.referencedTablePath,
             onDelete: metadata.onDelete,
-            onUpdate: metadata.onUpdate
+            onUpdate: metadata.onUpdate,
+            deferrable: metadata.deferrable,
         });
     };
     return TableForeignKey;

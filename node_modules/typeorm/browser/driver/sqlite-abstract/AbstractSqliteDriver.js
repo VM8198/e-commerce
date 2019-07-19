@@ -2,6 +2,7 @@ import * as tslib_1 from "tslib";
 import { DateUtils } from "../../util/DateUtils";
 import { RdbmsSchemaBuilder } from "../../schema-builder/RdbmsSchemaBuilder";
 import { OrmUtils } from "../../util/OrmUtils";
+import { ApplyValueTransformers } from "../../util/ApplyValueTransformers";
 /**
  * Organizes communication with sqlite DBMS.
  */
@@ -103,6 +104,12 @@ var AbstractSqliteDriver = /** @class */ (function () {
             cacheDuration: "int",
             cacheQuery: "text",
             cacheResult: "text",
+            metadataType: "varchar",
+            metadataDatabase: "varchar",
+            metadataSchema: "varchar",
+            metadataTable: "varchar",
+            metadataName: "varchar",
+            metadataValue: "text",
         };
         this.connection = connection;
         this.options = connection.options;
@@ -159,7 +166,7 @@ var AbstractSqliteDriver = /** @class */ (function () {
      */
     AbstractSqliteDriver.prototype.preparePersistentValue = function (value, columnMetadata) {
         if (columnMetadata.transformer)
-            value = columnMetadata.transformer.to(value);
+            value = ApplyValueTransformers.transformTo(columnMetadata.transformer, value);
         if (value === null || value === undefined)
             return value;
         if (columnMetadata.type === Boolean || columnMetadata.type === "boolean") {
@@ -182,6 +189,9 @@ var AbstractSqliteDriver = /** @class */ (function () {
         else if (columnMetadata.type === "simple-json") {
             return DateUtils.simpleJsonToString(value);
         }
+        else if (columnMetadata.type === "simple-enum") {
+            return DateUtils.simpleEnumToString(value);
+        }
         return value;
     };
     /**
@@ -189,7 +199,7 @@ var AbstractSqliteDriver = /** @class */ (function () {
      */
     AbstractSqliteDriver.prototype.prepareHydratedValue = function (value, columnMetadata) {
         if (value === null || value === undefined)
-            return columnMetadata.transformer ? columnMetadata.transformer.from(value) : value;
+            return columnMetadata.transformer ? ApplyValueTransformers.transformFrom(columnMetadata.transformer, value) : value;
         if (columnMetadata.type === Boolean || columnMetadata.type === "boolean") {
             value = value ? true : false;
         }
@@ -204,7 +214,17 @@ var AbstractSqliteDriver = /** @class */ (function () {
              * https://www.w3.org/TR/NOTE-datetime
              */
             if (value && typeof value === "string") {
-                value = value.replace(" ", "T") + "Z";
+                // There are various valid time string formats a sqlite time string might have:
+                // https://www.sqlite.org/lang_datefunc.html
+                // There are two separate fixes we may need to do:
+                //   1) Add 'T' separator if space is used instead
+                //   2) Add 'Z' UTC suffix if no timezone or offset specified
+                if (/^\d\d\d\d-\d\d-\d\d \d\d:\d\d/.test(value)) {
+                    value = value.replace(" ", "T");
+                }
+                if (/^\d\d\d\d-\d\d-\d\dT\d\d:\d\d(:\d\d(\.\d\d\d)?)?$/.test(value)) {
+                    value += "Z";
+                }
             }
             value = DateUtils.normalizeHydratedDate(value);
         }
@@ -220,8 +240,11 @@ var AbstractSqliteDriver = /** @class */ (function () {
         else if (columnMetadata.type === "simple-json") {
             value = DateUtils.stringToSimpleJson(value);
         }
+        else if (columnMetadata.type === "simple-enum") {
+            value = DateUtils.stringToSimpleEnum(value, columnMetadata);
+        }
         if (columnMetadata.transformer)
-            value = columnMetadata.transformer.from(value);
+            value = ApplyValueTransformers.transformFrom(columnMetadata.transformer, value);
         return value;
     };
     /**
@@ -306,6 +329,9 @@ var AbstractSqliteDriver = /** @class */ (function () {
         }
         else if (column.type === "simple-json") {
             return "text";
+        }
+        else if (column.type === "simple-enum") {
+            return "varchar";
         }
         else {
             return column.type || "";

@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = require("tslib");
+var CockroachDriver_1 = require("../driver/cockroachdb/CockroachDriver");
 var QueryBuilder_1 = require("./QueryBuilder");
 var SqlServerDriver_1 = require("../driver/sqlserver/SqlServerDriver");
 var PostgresDriver_1 = require("../driver/postgres/PostgresDriver");
@@ -317,6 +318,9 @@ var UpdateQueryBuilder = /** @class */ (function (_super) {
                     throw new EntityColumnNotFound_1.EntityColumnNotFound(propertyPath);
                 }
                 columns.forEach(function (column) {
+                    if (!column.isUpdate) {
+                        return;
+                    }
                     var paramName = "upd_" + column.databaseName;
                     //
                     var value = column.getEntityValue(valuesSet);
@@ -407,7 +411,7 @@ var UpdateQueryBuilder = /** @class */ (function (_super) {
         var whereExpression = this.createWhereExpression();
         var returningExpression = this.createReturningExpression();
         // generate and return sql update query
-        if (returningExpression && (this.connection.driver instanceof PostgresDriver_1.PostgresDriver || this.connection.driver instanceof OracleDriver_1.OracleDriver)) {
+        if (returningExpression && (this.connection.driver instanceof PostgresDriver_1.PostgresDriver || this.connection.driver instanceof OracleDriver_1.OracleDriver || this.connection.driver instanceof CockroachDriver_1.CockroachDriver)) {
             return "UPDATE " + this.getTableName(this.getMainTableName()) + " SET " + updateColumnAndValues.join(", ") + whereExpression + " RETURNING " + returningExpression;
         }
         else if (returningExpression && this.connection.driver instanceof SqlServerDriver_1.SqlServerDriver) {
