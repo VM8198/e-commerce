@@ -42,7 +42,7 @@ var bodyParser = require('body-parser');
 var app = exp();
 var http = require('http');
 const port = 9000;
-var server = app.listen(port);
+var server = app.listen(process.env.PORT || port);
 
 // mongoose.connect('mongodb://localhost:27017/spurtcommerce', { useNewUrlParser: true })
 //     .then(() => console.log("CONNECTED"))
