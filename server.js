@@ -47,14 +47,13 @@ var server = app.listen(process.env.PORT || port);
 // mongoose.connect('mongodb://localhost:27017/spurtcommerce', { useNewUrlParser: true })
 //     .then(() => console.log("CONNECTED"))
 //     .catch(err => console.log(err));
-mongoose.connect('mongodb://54.185.16.135:27017/spurtCommerce', { useNewUrlParser: true })
+mongoose.connect('mongodb://rao:raoinfotech@54.185.16.135:27017/spurtCommerce', { useNewUrlParser: true })
  .then(() => console.log("Connected"))
  .catch(err => console.log(err));
 
 app.use(cors());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
-
 
 
 app.get('/api/list/productlist', storeController.getProductList);
